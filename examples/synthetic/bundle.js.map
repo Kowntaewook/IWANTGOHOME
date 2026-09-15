@@ -1,0 +1,1 @@
+{"version": 3, "sources": ["original.js"], "sourcesContent": ["function safe(x) { return String(x); }"], "names": [], "mappings": ""}

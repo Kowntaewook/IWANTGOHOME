@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctf-mcp"
+version = "0.3.0"
+description = "Bounded, evidence-oriented analysis of authorized local artifacts."
+requires-python = ">=3.11"
+dependencies = [
+  "mcp==1.30.0", "defusedxml==0.7.1", "PyYAML==6.0.3", "graphql-core==3.2.12",
+]
+
+[project.optional-dependencies]
+platform = ["androguard==4.1.4", "lief==1.0.0", "cryptography==50.0.1", "protobuf==7.36.1"]
+browser = ["playwright==1.62.0"]
+device = ["frida==17.18.0"]
+test = ["pytest==9.1.1"]
+
+[project.scripts]
+ctf-mcp = "ctf_mcp.server:main"
+finder-mcp = "ctf_mcp.server:main"
+finder = "ctf_mcp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ctf_mcp = ["ghidra_scripts/*.java"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

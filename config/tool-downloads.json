@@ -1,0 +1,47 @@
+{
+  "jadx": {
+    "version": "v1.5.6",
+    "url": "https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip",
+    "sha256": "545ea2be9c242511bc145755cf4bda2485ade42966e096f8b4d3da2a230e8974",
+    "bytes": 72646741,
+    "license": "Apache-2.0",
+    "source": "https://github.com/skylot/jadx/releases/tag/v1.5.6",
+    "checked_at": "2026-09-15"
+  },
+  "apktool": {
+    "version": "v3.0.3",
+    "url": "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar",
+    "sha256": "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423",
+    "bytes": 15478013,
+    "license": "Apache-2.0",
+    "source": "https://github.com/iBotPeaches/Apktool/releases/tag/v3.0.3",
+    "checked_at": "2026-09-15"
+  },
+  "ghidra": {
+    "version": "Ghidra_12.1.3_build",
+    "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip",
+    "sha256": "93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54",
+    "bytes": 569445154,
+    "license": "Apache-2.0",
+    "source": "https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.3_build",
+    "checked_at": "2026-09-15"
+  },
+  "java-aarch64": {
+    "version": "jdk-21.0.12.1+1",
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+    "sha256": "23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223",
+    "bytes": 205641175,
+    "license": "GPL-2.0-with-classpath-exception; bundled notices apply",
+    "source": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1",
+    "checked_at": "2026-09-15"
+  },
+  "java-x64": {
+    "version": "jdk-21.0.12.1+1",
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+    "sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94",
+    "bytes": 207473347,
+    "license": "GPL-2.0-with-classpath-exception; bundled notices apply",
+    "source": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1",
+    "checked_at": "2026-09-15"
+  }
+}

@@ -1,0 +1,5 @@
+--- a/view.js
++++ b/view.js
+@@ -1 +1 @@
+-return plain;
++element.innerHTML = value;

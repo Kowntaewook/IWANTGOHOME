@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+
+ROOT="$HOME/IWANTGOHOME"
+cd "$ROOT"
+
+CMD="${1:-run}"
+
+case "$CMD" in
+  run)
+    exec ./scripts/finder.sh run
+    ;;
+  build)
+    exec ./scripts/finder.sh build
+    ;;
+  login)
+    exec ./scripts/finder.sh login
+    ;;
+  logout)
+    exec ./scripts/finder.sh logout
+    ;;
+  status)
+    exec ./scripts/finder.sh status
+    ;;
+  doctor)
+    exec ./scripts/finder.sh doctor
+    ;;
+  stop)
+    exec ./scripts/finder.sh stop
+    ;;
+  *)
+    echo "Usage: IWANTGOHOME [run|build|login|logout|status|doctor|stop]"
+    exit 1
+    ;;
+esac

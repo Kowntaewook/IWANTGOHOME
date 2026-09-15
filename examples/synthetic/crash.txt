@@ -1,0 +1,2 @@
+SIGSEGV
+#0 synthetic_function

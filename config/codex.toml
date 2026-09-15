@@ -1,0 +1,49 @@
+# Checked against Codex CLI 0.154.0 and the official schema on 2026-09-15.
+# No model name: use the choices actually available to your ChatGPT account.
+cli_auth_credentials_store = "file"
+approval_policy = "never"
+sandbox_mode = "read-only"
+web_search = "disabled"
+log_dir = "/tmp/codex-logs"
+
+[features]
+shell_tool = false
+
+[analytics]
+enabled = false
+
+[mcp_servers.analysis]
+url = "http://analysis:8000/mcp"
+required = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+[mcp_servers.platform]
+url = "http://platform:8000/mcp"
+enabled = false
+tool_timeout_sec = 60
+
+[mcp_servers.observer]
+url = "http://observer:8000/mcp"
+enabled = false
+tool_timeout_sec = 60
+
+[mcp_servers.android]
+url = "http://android:8000/mcp"
+enabled = false
+tool_timeout_sec = 120
+
+[mcp_servers.android-dynamic]
+url = "http://android-dynamic:8000/mcp"
+enabled = false
+tool_timeout_sec = 30
+
+[mcp_servers.binary]
+url = "http://binary:8000/mcp"
+enabled = false
+tool_timeout_sec = 120
+
+[mcp_servers.burp]
+url = "http://burp:8000/mcp"
+enabled = false
+tool_timeout_sec = 30

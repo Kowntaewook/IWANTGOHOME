@@ -1,0 +1,10 @@
+{
+  "start_url": "http://127.0.0.1:8080/",
+  "allowed_urls": ["http://127.0.0.1:8080/", "http://127.0.0.1:8080/style.css"],
+  "excluded_urls": ["http://127.0.0.1:8080/private"],
+  "private_cidrs": ["127.0.0.1/32"],
+  "max_requests": 5,
+  "max_bytes": 65536,
+  "max_response_bytes": 32768,
+  "seconds": 15
+}

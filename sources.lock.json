@@ -1,0 +1,1115 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-09-15",
+  "sources": [
+    {
+      "name": "Codex authentication",
+      "url": "https://learn.chatgpt.com/docs/auth",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "/docs/auth",
+      "license_and_redistribution": "Official documentation; text not redistributed. Codex package license handled separately.",
+      "adopted_elements": "Device-code ChatGPT login, file credential store, separate CODEX_HOME and expiry/access guidance.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "1203cb8b22c421c0af9125dd2b70c475993028468d8f5359ad91ad2c40075677"
+    },
+    {
+      "name": "Codex configuration",
+      "url": "https://learn.chatgpt.com/docs/config-file/config-reference",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "/docs/config-file/config-reference and config-schema.json",
+      "license_and_redistribution": "Official docs/schema; not vendored.",
+      "adopted_elements": "Verified configuration keys and strict app-server config parsing; no assumed model.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "60f5567c787e50f805e7d8b30ae153a1712ae20625c3624372f4b566c88284cb"
+    },
+    {
+      "name": "Codex MCP",
+      "url": "https://learn.chatgpt.com/docs/extend/mcp",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "/docs/extend/mcp",
+      "license_and_redistribution": "Official docs; not redistributed.",
+      "adopted_elements": "HTTP MCP server tables, explicit optional-service enablement, real CLI registration inspection.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "41f531ed9200f16cda4519d632e42589c40f50671bd370ce45cf8f1ebf67fa2d"
+    },
+    {
+      "name": "Codex skill discovery",
+      "url": "https://learn.chatgpt.com/docs/build-skills",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "/docs/build-skills",
+      "license_and_redistribution": "Official docs; not redistributed.",
+      "adopted_elements": ".agents/skills repository layout; /etc/codex/skills image layout; actual skills/list check.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "d15791562748e64a53dfec534b8558aa522e732cec0fdedcf7257fa4ef486a20"
+    },
+    {
+      "name": "Codex CLI",
+      "url": "https://registry.npmjs.org/@openai/codex/0.154.0",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "0.154.0",
+      "license_and_redistribution": "Apache-2.0 per npm metadata; preserve package notices in images.",
+      "adopted_elements": "Pinned CLI for ChatGPT-backed agent. Version/help/config/skill discovery executed.",
+      "inclusion": "build_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "785849486d93ebba5bda538f0ebd29cd9b659e2b7ec78518a529c8eaf439bb87"
+    },
+    {
+      "name": "MCP Python SDK v1",
+      "url": "https://py.sdk.modelcontextprotocol.io/v1/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "mcp 1.30.0; v1 maintenance-line documentation",
+      "license_and_redistribution": "MIT; retain dependency license/notice.",
+      "adopted_elements": "Retain original FastMCP framework with typed tools, structured responses, bounded HTTP body, official stdio and HTTP clients.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "MCP security advisories",
+      "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "advisory API snapshot 2026-09-15",
+      "license_and_redistribution": "Advisory reference only.",
+      "adopted_elements": "Checked six published SDK advisories; selected 1.30.0 beyond listed patched versions; no experimental tasks/WebSocket MCP.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "b8d772dfcb930f5a367265509f5da46f47cb34d2c7be08a4504f898c7be77a98"
+    },
+    {
+      "name": "MCP security guidance",
+      "url": "https://modelcontextprotocol.io/docs/draft/tutorials/security/security_best_practices",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "draft security_best_practices",
+      "license_and_redistribution": "Reference only; no documentation redistribution.",
+      "adopted_elements": "Separate authority from tool output, avoid credential passthrough, validate destinations and origins.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "OWASP WSTG",
+      "url": "https://owasp.github.io/www-project-web-security-testing-guide/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "project page; v4.2 referenced by official page",
+      "license_and_redistribution": "Project license must be checked before copying text; attempted LICENSE.md URL was unavailable. No text copied.",
+      "adopted_elements": "Evidence-backed review structure and explicit coverage; no active-testing payload catalog adopted.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "OWASP API Security",
+      "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "2023 Top 10; OWASP/API-Security LICENSE read",
+      "license_and_redistribution": "CC BY-SA 4.0 (repository LICENSE); attribution/share-alike review needed for derived redistributed material.",
+      "adopted_elements": "Distinguish declared API authentication from observed credentials and actual enforcement.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "9cff5eeb59f0a5f06d7cbe4c2435e7bbbce4edaab1d97b66324104f60a527cb7"
+    },
+    {
+      "name": "OWASP MASVS",
+      "url": "https://mas.owasp.org/MASVS/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "MASVS web documentation",
+      "license_and_redistribution": "Reference only; verify current project licensing before redistribution. No text copied.",
+      "adopted_elements": "Mobile storage/network/platform review categories, not runtime compliance certification.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Trail of Bits security skills",
+      "url": "https://github.com/trailofbits/skills",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "027bc47a69a276c340717bafdc3708263094b9a4; plugins/differential-review/skills/differential-review/SKILL.md and LICENSE",
+      "license_and_redistribution": "CC-BY-SA-4.0 in inspected commit; no upstream skill files or implementation copied.",
+      "adopted_elements": "Changed-line evidence, caller/context review, explicit counterarguments and report artifacts.",
+      "inclusion": "design_only",
+      "not_adopted_reason": "Did not install the plugin, Bash tool permissions or adversarial automation. Original narrowly scoped skills written here.",
+      "access_status": "read",
+      "content_sha256": "f9af6a8193fc1a9f8ca3c54bb8d19095a5f20c9472ca6d014488bbde50b67da0"
+    },
+    {
+      "name": "Android manifest docs",
+      "url": "https://developer.android.com/guide/topics/manifest/manifest-intro",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "manifest-intro",
+      "license_and_redistribution": "Android documentation terms; reference only.",
+      "adopted_elements": "SDK/permission/exported declarations and platform-dependent defaults.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Android network security config",
+      "url": "https://developer.android.com/privacy-and-security/security-config",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "security-config",
+      "license_and_redistribution": "Android documentation terms; reference only.",
+      "adopted_elements": "Review cleartext/trust-anchor/pin declarations with source context.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Androguard AXML documentation",
+      "url": "https://androguard.readthedocs.io/en/latest/intro/axml.html",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "page identifies old 3.4.0 docs; runtime 4.1.4 API inspected separately",
+      "license_and_redistribution": "Apache-2.0 project; no documentation copied.",
+      "adopted_elements": "Use a real AXML parser; current import path androguard.core.axml verified in installed 4.1.4.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "AAPT2 Resources.proto",
+      "url": "https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/tools/aapt2/Resources.proto",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "tools/aapt2/Resources.proto at checked main; content hash recorded",
+      "license_and_redistribution": "AOSP Apache-2.0 header. Original field projection; no full upstream generated code vendored.",
+      "adopted_elements": "XmlNode/XmlElement/XmlAttribute/Item/Primitive wire field numbers decoded with Google protobuf.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "0143425f756c3f3f50cbeb48b92c624ef713e219aa5ed8fad140c959b9d67d43"
+    },
+    {
+      "name": "Apple ATS",
+      "url": "https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "NSAppTransportSecurity",
+      "license_and_redistribution": "Apple documentation terms; reference only.",
+      "adopted_elements": "ATS key review; no device/signature/encrypted-code claims.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "LIEF documentation",
+      "url": "https://lief.re/doc/latest/intro.html",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "documentation introduction; installed LIEF 1.0.0",
+      "license_and_redistribution": "Apache-2.0; retain dependency notices.",
+      "adopted_elements": "PE/ELF/Mach-O metadata through parser API rather than arbitrary reverse-engineering commands.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Playwright network documentation",
+      "url": "https://playwright.dev/python/docs/network",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "Python network routing docs; installed 1.62.0",
+      "license_and_redistribution": "Apache-2.0; Chromium bundles have additional third-party licenses.",
+      "adopted_elements": "Intercept requests and fulfill from a bounded pinned-IP fetcher; service workers/JS/WebSockets disabled.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Python AST documentation",
+      "url": "https://docs.python.org/3/library/ast.html",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "3.14 docs ast",
+      "license_and_redistribution": "PSF documentation license; reference only.",
+      "adopted_elements": "Reviewed as possible structural-analysis option; no target imports.",
+      "inclusion": "design_only",
+      "not_adopted_reason": "Current cross-language rules are lexical; no AST/taint-analysis capability claimed.",
+      "access_status": "read"
+    },
+    {
+      "name": "Compose specification",
+      "url": "https://docs.docker.com/reference/compose-file/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "Compose file reference; CLI v5.5.1 config verification",
+      "license_and_redistribution": "Docs reference only; Compose CLI Apache-2.0.",
+      "adopted_elements": "Named state volumes, read-only bind mounts, internal network, non-root services and optional profiles.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "SPDX SBOM format",
+      "url": "https://spdx.github.io/spdx-spec/v2.3/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "v2.3",
+      "license_and_redistribution": "Specification terms must be checked before text redistribution; no text copied.",
+      "adopted_elements": "Read name/versionInfo inventory only; no full schema-conformance claim.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "CycloneDX SBOM schema",
+      "url": "https://github.com/CycloneDX/specification/blob/1.6/schema/bom-1.6.schema.json",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.6 schema/bom-1.6.schema.json and LICENSE",
+      "license_and_redistribution": "Apache-2.0 schema; referenced but not vendored.",
+      "adopted_elements": "Read components name/version inventory; no full BOM-validation claim.",
+      "inclusion": "design_only",
+      "not_adopted_reason": null,
+      "access_status": "read",
+      "content_sha256": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae"
+    },
+    {
+      "name": "mcp distribution",
+      "url": "https://pypi.org/project/mcp/1.30.0/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.30.0",
+      "license_and_redistribution": "MIT; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned base dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "defusedxml distribution",
+      "url": "https://pypi.org/project/defusedxml/0.7.1/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "0.7.1",
+      "license_and_redistribution": "PSF-2.0; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned base dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "PyYAML distribution",
+      "url": "https://pypi.org/project/PyYAML/6.0.3/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "6.0.3",
+      "license_and_redistribution": "MIT; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned base dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "androguard distribution",
+      "url": "https://pypi.org/project/androguard/4.1.4/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "4.1.4",
+      "license_and_redistribution": "Apache-2.0; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned platform dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "lief distribution",
+      "url": "https://pypi.org/project/lief/1.0.0/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.0.0",
+      "license_and_redistribution": "Apache-2.0; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned platform dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "cryptography distribution",
+      "url": "https://pypi.org/project/cryptography/50.0.1/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "50.0.1",
+      "license_and_redistribution": "Apache-2.0 OR BSD-3-Clause; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned platform dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "protobuf distribution",
+      "url": "https://pypi.org/project/protobuf/7.36.1/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "7.36.1",
+      "license_and_redistribution": "BSD-3-Clause; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned platform dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "playwright distribution",
+      "url": "https://pypi.org/project/playwright/1.62.0/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.62.0",
+      "license_and_redistribution": "Apache-2.0; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned web dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "pytest distribution",
+      "url": "https://pypi.org/project/pytest/9.1.1/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "9.1.1",
+      "license_and_redistribution": "MIT; installed license metadata recorded; retain and review distribution notices before redistribution.",
+      "adopted_elements": "Pinned test dependency; imported and exercised in local tests.",
+      "inclusion": "python_dependency_not_vendored",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "python Docker base",
+      "url": "https://hub.docker.com/_/python",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "license_and_redistribution": "Official image contains multiple packages/licenses; full image license/SBOM review still required before public redistribution.",
+      "adopted_elements": "Pinned multi-architecture base manifest verified through registry; Docker build not executed.",
+      "inclusion": "container_build_reference",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "node Docker base",
+      "url": "https://hub.docker.com/_/node",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df",
+      "license_and_redistribution": "Official image contains multiple packages/licenses; full image license/SBOM review still required before public redistribution.",
+      "adopted_elements": "Pinned multi-architecture base manifest verified through registry; Docker build not executed.",
+      "inclusion": "container_build_reference",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "Compose validation executable",
+      "url": "https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-aarch64",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "v5.5.1 sha256:732e3a84c1a0f67256ce80bc2598a24546b10ca05f9faa97efceb1171ece2ef7",
+      "license_and_redistribution": "Apache-2.0; binary used from /tmp and not distributed.",
+      "adopted_elements": "Standalone compose config validation; no Docker daemon/build/start performed.",
+      "inclusion": "validation_only",
+      "not_adopted_reason": null,
+      "access_status": "read"
+    },
+    {
+      "name": "JADX",
+      "url": "https://github.com/skylot/jadx/releases/tag/v1.5.6",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.5.6",
+      "license_and_redistribution": "Apache-2.0",
+      "adopted_elements": "Fixed snapshot decompilation; actual own synthetic DEX/APK executed.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "apktool",
+      "url": "https://github.com/iBotPeaches/Apktool/releases/tag/v3.0.3",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "3.0.3",
+      "license_and_redistribution": "Apache-2.0; LICENSE.md at v3.0.3 read",
+      "adopted_elements": "Optional image utility, no arbitrary MCP runner; downloaded/hash verified on host.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Ghidra",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.3_build",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "12.1.3",
+      "license_and_redistribution": "Apache-2.0 plus bundled third-party notices",
+      "adopted_elements": "Fixed HeadlessScript on a fresh project; actual synthetic ELF execution.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Temurin JDK",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "21.0.12.1+1",
+      "license_and_redistribution": "GPL-2.0 with Classpath exception and bundled notices",
+      "adopted_elements": "Official reviewed Linux arm64/x64 assets; host arm64 installed and executed.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Burp MCP tool declarations",
+      "url": "https://github.com/PortSwigger/mcp-server/blob/642e6fa31c63db3886a353fcd7ed62037e0ceed5/src/main/kotlin/net/portswigger/mcp/tools/Tools.kt",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "642e6fa31c63db3886a353fcd7ed62037e0ceed5",
+      "license_and_redistribution": "Reference only; no server code/binary redistributed",
+      "adopted_elements": "Reviewed history schemas; actual tools/list gate; local mocks only, no host Burp.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "GraphQL core",
+      "url": "https://pypi.org/project/graphql-core/3.2.12/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "3.2.12",
+      "license_and_redistribution": "MIT",
+      "adopted_elements": "Local parse only; argument/default values omitted; remote introspection absent.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Frida",
+      "url": "https://pypi.org/project/frida/17.18.0/",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "17.18.0",
+      "license_and_redistribution": "wxWindows Library Licence 3.1 per package metadata",
+      "adopted_elements": "Optional minimal host device/process metadata; installed host client, no device validation.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Debian aapt/aapt2",
+      "url": "https://packages.debian.org/bookworm/arm64/aapt/filelist",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1:10.0.0+r36-10",
+      "license_and_redistribution": "Debian/AOSP package copyright and bundled notices",
+      "adopted_elements": "Optional Android image; verified both executable paths, build not executed. Distro version, not latest Android SDK.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Debian apksigner",
+      "url": "https://packages.debian.org/bookworm/apksigner",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "31.0.2-1",
+      "license_and_redistribution": "Debian/AOSP package copyright and bundled notices",
+      "adopted_elements": "Pinned optional image utility; signature verification not exposed or tested.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Debian adb",
+      "url": "https://packages.debian.org/bookworm/adb",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1:29.0.6-28",
+      "license_and_redistribution": "Debian/AOSP package copyright and bundled notices",
+      "adopted_elements": "Pinned optional image client to configured host server; no actual device validation.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Playwright persistent context",
+      "url": "https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.62.0",
+      "license_and_redistribution": "Official documentation; not redistributed",
+      "adopted_elements": "Independent persistent profiles; real Chromium local tests.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    },
+    {
+      "name": "Playwright WebSocket routing",
+      "url": "https://playwright.dev/python/docs/api/class-browsercontext#browser-context-route-web-socket",
+      "checked_at": "2026-09-15",
+      "revision_or_document_path": "1.62.0",
+      "license_and_redistribution": "Official documentation; not redistributed",
+      "adopted_elements": "Fixed bounded opening handshake only; no frames forwarded.",
+      "inclusion": "optional_build_dependency_or_design_reference_not_vendored",
+      "access_status": "read"
+    }
+  ],
+  "python_environment": {
+    "platform": "Linux aarch64",
+    "python": "3.14.6",
+    "constraints_file": "constraints.txt",
+    "packages": [
+      {
+        "name": "alembic",
+        "version": "1.20.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "androguard",
+        "version": "4.1.4",
+        "declared_license": "Apache Licence, Version 2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "annotated-types",
+        "version": "0.8.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "anyio",
+        "version": "4.15.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "apkInspector",
+        "version": "1.3.7",
+        "declared_license": "Apache-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "asn1crypto",
+        "version": "1.5.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "asttokens",
+        "version": "3.0.2",
+        "declared_license": "Apache 2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "attrs",
+        "version": "26.1.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "certifi",
+        "version": "2026.7.22",
+        "declared_license": "MPL-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "cffi",
+        "version": "2.1.1",
+        "declared_license": "MIT-0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "click",
+        "version": "8.5.0",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "colorama",
+        "version": "0.4.6",
+        "declared_license": "not declared in installed metadata; review package license files",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "cryptography",
+        "version": "50.0.1",
+        "declared_license": "Apache-2.0 OR BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "dataset",
+        "version": "2.0.0",
+        "declared_license": "Copyright (c) 2013, Open Knowledge Foundation, Friedrich Lindenberg,\n  Gregor Aisch\n\nPermission is hereby granted, free of charge, to any person obtaining a\ncopy of this software and associated documentation files (the\n\"Software\"), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish,\ndistribute, sublicense, and/or sell copies of the Software, and to\npermit persons to whom the Software is furnished to do so, subject to\nthe foll",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "defusedxml",
+        "version": "0.7.1",
+        "declared_license": "PSFL",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "executing",
+        "version": "2.2.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "greenlet",
+        "version": "3.5.6",
+        "declared_license": "MIT AND PSF-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "h11",
+        "version": "0.16.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "httpcore",
+        "version": "1.0.9",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "httpx",
+        "version": "0.28.1",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "httpx-sse",
+        "version": "0.4.3",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "idna",
+        "version": "3.19",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "ipython",
+        "version": "9.17.1",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "ipython_pygments_lexers",
+        "version": "1.1.1",
+        "declared_license": "not declared in installed metadata; review package license files",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "jedi",
+        "version": "0.20.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "jsonschema",
+        "version": "4.26.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "jsonschema-specifications",
+        "version": "2025.9.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "lief",
+        "version": "1.0.0",
+        "declared_license": "Apache License 2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "loguru",
+        "version": "0.7.3",
+        "declared_license": "not declared in installed metadata; review package license files",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "lxml",
+        "version": "6.1.3",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "Mako",
+        "version": "1.4.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "MarkupSafe",
+        "version": "3.0.3",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "matplotlib-inline",
+        "version": "0.2.2",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "mcp",
+        "version": "1.30.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "mutf8",
+        "version": "1.1.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "networkx",
+        "version": "3.6.1",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "declared_license": "Apache-2.0 OR BSD-2-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "parso",
+        "version": "0.8.7",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pexpect",
+        "version": "4.9.0",
+        "declared_license": "ISC license",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pip",
+        "version": "26.1.2",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "playwright",
+        "version": "1.62.0",
+        "declared_license": "Apache-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "prompt_toolkit",
+        "version": "3.0.53",
+        "declared_license": "not declared in installed metadata; review package license files",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "protobuf",
+        "version": "7.36.1",
+        "declared_license": "3-Clause BSD License",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "psutil",
+        "version": "7.2.2",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "ptyprocess",
+        "version": "0.7.0",
+        "declared_license": "UNKNOWN",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pure_eval",
+        "version": "0.2.4",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pycparser",
+        "version": "3.0",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pydantic",
+        "version": "2.13.5",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pydantic-settings",
+        "version": "2.15.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pydantic_core",
+        "version": "2.46.5",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pydot",
+        "version": "4.0.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pyee",
+        "version": "13.0.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "Pygments",
+        "version": "2.21.0",
+        "declared_license": "BSD-2-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "PyJWT",
+        "version": "2.14.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pyparsing",
+        "version": "3.3.2",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "pytest",
+        "version": "9.1.1",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "python-dotenv",
+        "version": "1.2.3",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "python-multipart",
+        "version": "0.0.32",
+        "declared_license": "Apache-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "PyYAML",
+        "version": "6.0.3",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "referencing",
+        "version": "0.37.0",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "rpds-py",
+        "version": "2026.6.3",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "SQLAlchemy",
+        "version": "2.0.53",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "sse-starlette",
+        "version": "3.4.11",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "stack-data",
+        "version": "0.6.3",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "starlette",
+        "version": "1.6.0",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "traitlets",
+        "version": "5.16.1",
+        "declared_license": "BSD 3-Clause License\n\n- Copyright (c) 2001-, IPython Development Team\n\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this\n   list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice,\n   this list of conditions and the following disclaime",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.4",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "typing_extensions",
+        "version": "4.16.0",
+        "declared_license": "PSF-2.0",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.53.0",
+        "declared_license": "BSD-3-Clause",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      },
+      {
+        "name": "wcwidth",
+        "version": "0.8.3",
+        "declared_license": "MIT",
+        "metadata_basis": "installed distribution metadata",
+        "redistribution_note": "Retain actual license files; this inventory is not a legal clearance."
+      }
+    ]
+  },
+  "original_archive": {
+    "filename": "something_finder-main.zip",
+    "sha256": "defa4907e1c77d4652d9a63664c214329a2fa5d2bd7dbe5f25983dcfb9c6953f",
+    "included_in_distribution": false,
+    "source_license": "No license file found in supplied source/config selection; do not assume public redistribution rights."
+  },
+  "unverified_or_unavailable": [
+    {
+      "url": "https://cyclonedx.org/docs/1.6/json/",
+      "status": "web fetch error; inspected original GitHub schema instead"
+    },
+    {
+      "source": "X/Twitter",
+      "status": "No post used or claimed read"
+    },
+    {
+      "source": "OWASP WSTG/MASTG attempted raw license URLs",
+      "status": "HTTP errors; not claimed verified"
+    }
+  ],
+  "current_source_of_truth": {
+    "path": "/workspace/something_finder",
+    "restored_by": "user",
+    "previous_zip_used_for_this_upgrade": false,
+    "baseline_source_files": 89
+  },
+  "native_tool_downloads": {
+    "jadx": {
+      "version": "v1.5.6",
+      "url": "https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip",
+      "sha256": "545ea2be9c242511bc145755cf4bda2485ade42966e096f8b4d3da2a230e8974",
+      "bytes": 72646741,
+      "license": "Apache-2.0",
+      "source": "https://github.com/skylot/jadx/releases/tag/v1.5.6",
+      "checked_at": "2026-09-15"
+    },
+    "apktool": {
+      "version": "v3.0.3",
+      "url": "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar",
+      "sha256": "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423",
+      "bytes": 15478013,
+      "license": "Apache-2.0",
+      "source": "https://github.com/iBotPeaches/Apktool/releases/tag/v3.0.3",
+      "checked_at": "2026-09-15"
+    },
+    "ghidra": {
+      "version": "Ghidra_12.1.3_build",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip",
+      "sha256": "93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54",
+      "bytes": 569445154,
+      "license": "Apache-2.0",
+      "source": "https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.3_build",
+      "checked_at": "2026-09-15"
+    },
+    "java-aarch64": {
+      "version": "jdk-21.0.12.1+1",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+      "sha256": "23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223",
+      "bytes": 205641175,
+      "license": "GPL-2.0-with-classpath-exception; bundled notices apply",
+      "source": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1",
+      "checked_at": "2026-09-15"
+    },
+    "java-x64": {
+      "version": "jdk-21.0.12.1+1",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+      "sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94",
+      "bytes": 207473347,
+      "license": "GPL-2.0-with-classpath-exception; bundled notices apply",
+      "source": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1",
+      "checked_at": "2026-09-15"
+    }
+  },
+  "upgrade_python_packages": {
+    "graphql-core": {
+      "version": "3.2.12",
+      "license": "MIT license"
+    },
+    "frida": {
+      "version": "17.18.0",
+      "license": "wxWindows Library Licence, Version 3.1"
+    }
+  }
+}

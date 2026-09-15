@@ -1,0 +1,973 @@
+{
+  "date": "2026-09-15",
+  "source_of_truth": "/workspace/something_finder",
+  "previous_zip_used": false,
+  "environment": {
+    "platform": "Linux-6.10.14-linuxkit-aarch64-with-glibc2.43",
+    "machine": "aarch64",
+    "python": "3.14.6",
+    "packages": {
+      "ctf-mcp": "0.3.0",
+      "mcp": "1.30.0",
+      "playwright": "1.62.0",
+      "androguard": "4.1.4",
+      "lief": "1.0.0",
+      "graphql-core": "3.2.12",
+      "frida": "17.18.0"
+    }
+  },
+  "baseline": {
+    "tests": 109,
+    "seconds": 21.503,
+    "all_109_cases_retained": true
+  },
+  "full_suite_command": "FINDER_TOOL_ROOT=/tmp/finder-tools /tmp/finder-venv/bin/python -m pytest -q --junitxml=/tmp/finder-upgrade-final.xml",
+  "full_suite": {
+    "tests": 153,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 64.796,
+    "cases": [
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[har-sample.har]",
+        "seconds": 0.1,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[http_log-http.jsonl]",
+        "seconds": 0.099,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[openapi-api.json]",
+        "seconds": 0.094,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[source-source.py]",
+        "seconds": 0.098,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[source_map-bundle.js.map]",
+        "seconds": 0.093,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[diff-change.diff]",
+        "seconds": 0.107,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[dependencies-package-lock.json]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[infrastructure-sample.Dockerfile]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[ios-sample.ipa]",
+        "seconds": 0.097,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[entitlement-entitlements.plist]",
+        "seconds": 0.094,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[android-sample.apk]",
+        "seconds": 0.198,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[android-sample.aab]",
+        "seconds": 0.11,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[binary-sample.elf]",
+        "seconds": 0.638,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[binary-sample.exe]",
+        "seconds": 0.357,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[binary-sample.macho]",
+        "seconds": 0.373,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[crash-crash.txt]",
+        "seconds": 0.079,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[packet-sample.pcap]",
+        "seconds": 0.096,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_real_parser_and_immutable_evidence[archive-sample.zip]",
+        "seconds": 0.094,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[har-sample.har]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[http_log-http.jsonl]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[openapi-api.json]",
+        "seconds": 0.09,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[source-source.py]",
+        "seconds": 0.093,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[source_map-bundle.js.map]",
+        "seconds": 0.072,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[diff-change.diff]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[dependencies-package-lock.json]",
+        "seconds": 0.074,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[infrastructure-sample.Dockerfile]",
+        "seconds": 0.073,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[ios-sample.ipa]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[entitlement-entitlements.plist]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[android-sample.apk]",
+        "seconds": 0.075,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[android-sample.aab]",
+        "seconds": 0.074,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[binary-sample.elf]",
+        "seconds": 0.338,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[binary-sample.exe]",
+        "seconds": 0.368,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[binary-sample.macho]",
+        "seconds": 0.358,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[crash-crash.txt]",
+        "seconds": 0.096,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[packet-sample.pcap]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_damaged_input[archive-sample.zip]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[har-sample.har]",
+        "seconds": 0.096,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[http_log-http.jsonl]",
+        "seconds": 0.097,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[openapi-api.json]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[source-source.py]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[source_map-bundle.js.map]",
+        "seconds": 0.075,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[diff-change.diff]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[dependencies-package-lock.json]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[infrastructure-sample.Dockerfile]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[ios-sample.ipa]",
+        "seconds": 0.075,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[entitlement-entitlements.plist]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[android-sample.apk]",
+        "seconds": 0.096,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[android-sample.aab]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[binary-sample.elf]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[binary-sample.exe]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[binary-sample.macho]",
+        "seconds": 0.077,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[crash-crash.txt]",
+        "seconds": 0.074,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[packet-sample.pcap]",
+        "seconds": 0.076,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_oversize_input[archive-sample.zip]",
+        "seconds": 0.081,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_platform_semantics",
+        "seconds": 1.378,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_rules_and_fix_regression",
+        "seconds": 0.251,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_secret_values_absent",
+        "seconds": 0.171,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_no_external_refs_or_project_execution",
+        "seconds": 0.151,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_source_context_minimizes_secret_lines",
+        "seconds": 0.148,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_certificate_metadata_and_bad_inputs",
+        "seconds": 0.436,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_android_xml_details_and_plist_formats",
+        "seconds": 0.158,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_dependency_formats[Cargo.lock-version = 3\\n[[package]]\\nname = \"sample\"\\nversion = \"1.0.0\"\\n-toml-lock]",
+        "seconds": 0.079,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_dependency_formats[sbom.json-{\"bomFormat\":\"CycloneDX\",\"components\":[{\"name\":\"sample\",\"version\":\"1.0\"}]}-cyclonedx]",
+        "seconds": 0.098,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_dependency_formats[spdx.json-{\"spdxVersion\":\"SPDX-2.3\",\"packages\":[{\"name\":\"sample\",\"versionInfo\":\"1.0\"}]}-spdx]",
+        "seconds": 0.078,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_dependency_formats[requirements.txt-sample==1.0.0\\n-requirements-pinned]",
+        "seconds": 0.097,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_dependency_formats[pnpm.yaml-lockfileVersion: 9\\nsnapshots:\\n  sample@1.0.0: {}\\n-pnpm-lock]",
+        "seconds": 0.098,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_infrastructure_privilege_and_exposure_rules",
+        "seconds": 0.174,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_analysis.test_common_http_log_and_openapi2",
+        "seconds": 0.152,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_burp_adapter.test_optional_absence_is_not_system_failure",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_burp_adapter.test_real_mcp_discovery_history_and_minimization[streamable-http]",
+        "seconds": 0.68,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_burp_adapter.test_real_mcp_discovery_history_and_minimization[sse]",
+        "seconds": 0.606,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_burp_adapter.test_endpoint_and_pagination_controls",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_missing_endpoints_and_invalid_endpoints",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_adb_fixed_commands_opaque_identity_and_messages_withheld",
+        "seconds": 0.001,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_frida_metadata_only_and_cleanup",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_new_roles_real_mcp_initialize_list_call[android-android_manifest-args0]",
+        "seconds": 0.677,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_new_roles_real_mcp_initialize_list_call[binary-binary_identify-args1]",
+        "seconds": 0.844,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_new_roles_real_mcp_initialize_list_call[android-dynamic-adb_devices-args2]",
+        "seconds": 0.525,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_device_adapter.test_new_roles_real_mcp_initialize_list_call[burp-burp_capabilities-args3]",
+        "seconds": 0.471,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_distribution.test_source_zip_allowlist_and_no_overwrite",
+        "seconds": 0.064,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_distribution.test_manifest_does_not_sweep_new_files_or_follow_links",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_mcp.test_official_stdio_initialize_list_call_and_safe_errors",
+        "seconds": 0.665,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_mcp.test_official_http_transport",
+        "seconds": 0.66,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_mcp.test_role_surfaces_and_schemas",
+        "seconds": 0.082,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_optional_native.test_native_missing_tool_and_input_boundaries[android_decompile_summary-sample.apk]",
+        "seconds": 0.422,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_optional_native.test_native_missing_tool_and_input_boundaries[ghidra_analyze-sample.elf]",
+        "seconds": 0.879,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_optional_native.test_real_jadx_decompiles_own_java_fixture",
+        "seconds": 1.703,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_optional_native.test_real_ghidra_fixed_headless_script",
+        "seconds": 5.598,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_session_store_path_isolation_and_private_import",
+        "seconds": 0.004,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_real_persistent_sessions_spa_shapes_and_ab_comparison",
+        "seconds": 11.565,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_cross_origin_credentials_and_redirect_blocking",
+        "seconds": 4.017,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_explicit_private_option_and_actual_request_limit",
+        "seconds": 4.029,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_budget_rate_concurrency_bytes_and_runtime",
+        "seconds": 0.001,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_spa_response_budget_exclusions_and_unapproved_post",
+        "seconds": 4.028,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_persistent_sessions.test_pause_resume_abort_prevents_further_network",
+        "seconds": 2.019,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_settings_missing_invalid_and_disjoint",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_paths_symlinks_and_special_files",
+        "seconds": 0.002,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_archives_no_traversal_duplicate_link_bomb",
+        "seconds": 0.002,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_structured_limits_and_entities",
+        "seconds": 0.073,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_research_resume_report_and_confirmation_rejected",
+        "seconds": 0.083,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_auth_and_config_preserved_and_status_masked",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_worker_deadline",
+        "seconds": 0.054,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_archive_duplicate_and_directory_limits",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_concurrent_records_do_not_overwrite",
+        "seconds": 0.016,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_quoted_secrets_with_spaces_are_suppressed",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_safety_records.test_fixture_generation_is_repeatable",
+        "seconds": 0.002,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_skills_lifecycle.test_skill_frontmatter_and_actual_tools",
+        "seconds": 0.129,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_skills_lifecycle.test_human_approval_cannot_be_script_flag",
+        "seconds": 0.003,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_skills_lifecycle.test_lifecycle_preserves_legacy_state_and_volumes",
+        "seconds": 0.009,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_skills_lifecycle.test_actual_codex_discovery_when_available",
+        "seconds": 0.349,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_skills_lifecycle.test_stop_covers_oneoff_containers_in_only_new_project",
+        "seconds": 0.002,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_new_candidate_states_and_provenance_preserve_old_records",
+        "seconds": 0.107,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_api_views_and_graphql_values_never_returned",
+        "seconds": 0.641,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_source_ast_search_and_no_execution",
+        "seconds": 0.589,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_permissions-sample.apk]",
+        "seconds": 0.26,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_manifest-sample.aab]",
+        "seconds": 0.17,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_exported_components-sample.apk]",
+        "seconds": 0.281,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_network_security-sample.apk]",
+        "seconds": 0.27,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_certificate_info-sample.apk]",
+        "seconds": 0.272,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[android_find_deeplinks-sample.apk]",
+        "seconds": 0.26,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[ios_info_plist-sample.ipa]",
+        "seconds": 0.152,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[ios_url_schemes-sample.ipa]",
+        "seconds": 0.175,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[ios_ats_config-sample.ipa]",
+        "seconds": 0.151,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[ios_entitlements-entitlements.plist]",
+        "seconds": 0.149,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[ios_frameworks-sample.ipa]",
+        "seconds": 0.152,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[binary_identify-sample.elf]",
+        "seconds": 0.715,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[binary_imports-sample.exe]",
+        "seconds": 0.711,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[binary_exports-sample.macho]",
+        "seconds": 0.678,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_platform_views_and_malformed_input[binary_strings-sample.elf]",
+        "seconds": 0.724,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_ci_iac_and_generated_sbom",
+        "seconds": 0.242,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_tmpfs_mount_options_remain_one_string",
+        "seconds": 0.045,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_installed_command_works_from_unrelated_directory_without_overwrite",
+        "seconds": 0.007,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_upgrade_offline.test_new_tools_list_and_call",
+        "seconds": 0.116,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_no_approval_no_request",
+        "seconds": 0.509,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_read_redirect_and_one_use",
+        "seconds": 0.588,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_forbidden_redirect_never_sent",
+        "seconds": 0.582,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_private_and_exclusion_precedence",
+        "seconds": 0.505,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_real_read_byte_limits[/large-response_size_limit]",
+        "seconds": 0.592,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_real_read_byte_limits[/stream-response_read_limit]",
+        "seconds": 0.585,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_count_stop_and_concurrency",
+        "seconds": 0.571,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_process_deadline",
+        "seconds": 1.09,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_browser_subrequests_blocked_before_network",
+        "seconds": 0.975,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_pinned_connection_and_revocation",
+        "seconds": 0.508,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_saved_observation_regression_test_runs",
+        "seconds": 0.582,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[file:///etc/passwd]",
+        "seconds": 0.001,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://u:p@host/a]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/a#b]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/a/../b]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/%252e%252e/b]",
+        "seconds": 0.001,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/logout]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/a?token=x]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host:0/a]",
+        "seconds": 0.0,
+        "result": "passed"
+      },
+      {
+        "name": "tests.test_web.test_url_rejection[http://host/a\\\\b]",
+        "seconds": 0.001,
+        "result": "passed"
+      }
+    ]
+  },
+  "additional_ios_command": "/tmp/finder-venv/bin/python -m pytest -q tests/test_upgrade_offline.py -k ios_macho --junitxml=/tmp/finder-ios-macho-final.xml",
+  "additional_ios": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1.153,
+    "cases": [
+      {
+        "name": "tests.test_upgrade_offline.test_ios_macho_view_reads_only_selected_bundle_executable",
+        "seconds": 0.843,
+        "result": "passed"
+      }
+    ]
+  },
+  "distinct_passing_cases": 154,
+  "codex": {
+    "cli_version": "codex-cli 0.154.0",
+    "strict_config_accepted": true,
+    "mcp_configured": [
+      "analysis",
+      "android",
+      "android-dynamic",
+      "binary",
+      "burp",
+      "observer",
+      "platform"
+    ],
+    "discovered_project_skills": [
+      "android-dynamic-review",
+      "android-static-review",
+      "api-review",
+      "attack-surface-map",
+      "authenticated-session-review",
+      "authz-comparison",
+      "binary-review",
+      "business-logic-review",
+      "dependency-review",
+      "evidence-capture",
+      "ios-static-review",
+      "privacy-review",
+      "prompt-injection-defense",
+      "report-writing",
+      "scope-gate",
+      "skeptical-retest",
+      "source-review",
+      "web-observation"
+    ],
+    "discovery_rpc": "skills/list",
+    "model_selection_evaluated": false,
+    "chatgpt_login_executed": false
+  },
+  "additional_checks": {
+    "official_compose_config_all_profiles": true,
+    "tmpfs_mount_options": true,
+    "shell_syntax": true,
+    "python_source_parse": true,
+    "pip_check": true,
+    "skill_creator_quick_validate": 18,
+    "readme_install_entrypoint_temporary_home": true,
+    "final_distribution_and_skills_regression": "7 passed in 0.96s",
+    "readme_exact_user_text": true,
+    "live_schema_catalog_matches": true,
+    "tested_implementation_hashes_match": true
+  },
+  "native_execution": {
+    "jadx": "1.5.6; own Java compiled to DEX, packaged with synthetic manifest, decompiled by real JADX",
+    "ghidra": "12.1.3; synthetic ELF, real fixed HeadlessScript metadata",
+    "target_programs_executed": false
+  },
+  "not_executed": [
+    "Docker image build/up/run and actual volume persistence",
+    "Actual ChatGPT login/token refresh/account/model access",
+    "Actual macOS/Windows command execution",
+    "Physical Android device/emulator or host Frida",
+    "Actual host Burp service",
+    "Model skill-selection and output-quality evaluation",
+    "Third-party target testing"
+  ],
+  "limitations": [
+    "Initial normal SPA navigation only; no automatic clicks/forms",
+    "WebSocket handshake only; SSE bounded snapshot",
+    "Python AST/ripgrep/fixed rules; Semgrep not integrated",
+    "No OS destination egress firewall",
+    "Static metadata is not runtime exploitability or signature verification",
+    "Redaction is heuristic for arbitrary names/keys/text"
+  ],
+  "tested_implementation_sha256": {
+    ".agents/skills/android-dynamic-review/SKILL.md": "baf6583bc86ce2e2184fb7f35bd3da91e4ed94d44344996c8b8e346d7eb06f48",
+    ".agents/skills/android-static-review/SKILL.md": "f0db01b4b250994323747d3170ab2e5d0ec995e9a85a5fd8f3681b7eb227d954",
+    ".agents/skills/api-review/SKILL.md": "a95b3490833a4f387c5a291c0b93c290ed2ec38d89dfa2958b5e7ac84238c10a",
+    ".agents/skills/attack-surface-map/SKILL.md": "7e2110ca96c15517234cd522d4e957b08eacfd1b218d345820a32046b2f158aa",
+    ".agents/skills/authenticated-session-review/SKILL.md": "78b27c0b35e1188cb9483bfa766ed6702d7826236b4fd6a4cd03534c305f23d6",
+    ".agents/skills/authz-comparison/SKILL.md": "75c43e856ed571108daac9bdad89cf39e8d52b468421d4bddb61a4e96b4d647d",
+    ".agents/skills/binary-review/SKILL.md": "c256b67f0a63ebdacb44e45f735440e81dd48a8776a745eb87a2cfa4e21feb31",
+    ".agents/skills/business-logic-review/SKILL.md": "ef51205f8959a0cabd0417ebabc5a7dde66cb701a23e602bdeb43151c3b08cfc",
+    ".agents/skills/dependency-review/SKILL.md": "9a0c32e3d02ea5aa76fe7003bceb7642093317223e63ead6f2c7a00795b176da",
+    ".agents/skills/evidence-capture/SKILL.md": "58755c39a577eb9c0d3261d4641be5177733614e3b7dcc2cf2aecea23b4be5f6",
+    ".agents/skills/ios-static-review/SKILL.md": "bc96e81cbe6c76bb0df8a7efd7d822ffde1039f2c71fe5820514d50d0516981e",
+    ".agents/skills/privacy-review/SKILL.md": "3514cfdbe5b9da57183ce8d36492622e2f9df585425157593b3e92282e0cbae2",
+    ".agents/skills/prompt-injection-defense/SKILL.md": "cd6451ef21ef292304d8a3018d1c574114a771994b167b03b8f7820981d47c5e",
+    ".agents/skills/report-writing/SKILL.md": "e077f2e276a5cd9e6537a05a198eae4fed01d70e7f697d86528fd9082eaadbcd",
+    ".agents/skills/scope-gate/SKILL.md": "1ef177ffb6c02274992e55ff795f24fb1a1f62e32cd335526f68ae74117288b5",
+    ".agents/skills/skeptical-retest/SKILL.md": "43fa212c4c9904943f5e5d83fa1bfcde29b93b863cec10e027e4c380a78a3e60",
+    ".agents/skills/source-review/SKILL.md": "87dfb7f5deded7497ebc31a8c9a0d72889d071435f676f05afd5d233eb3cbeab",
+    ".agents/skills/web-observation/SKILL.md": "58a839a70cb943678fbc2359af440eb1eaefcf68b285ce31a835133a7873d685",
+    ".dockerignore": "e879cb8146a6cf8837766678d1da6cd603b63a5fc3868eb2e1d9ea2accfcae3b",
+    ".gitignore": "a570d97fdd803a9a98ad884e81e9d62fe664eecdee5f4bd87b801edc47c74be8",
+    "AGENTS.md": "f1345776dbb840ff2a810740a0eadbd9829f09ffeed4c1e2c7466035bb48c895",
+    "Dockerfile": "1c67e103084c75f47e67748e3e3f07b9485b88ed4262909351e520b14d0eac0e",
+    "config/analysis.json": "0d3853216b7222faa38f4f37e18133b74673112c66815c845bd4d524805a97d0",
+    "config/browser.json": "fbcab436427df603fcb12ab786a62070713d89846db75bb8698f661f593cec29",
+    "config/codex.toml": "7dac437cc461081a848e684bbd516b74a777ede08e39360afc264bf1a01a76d5",
+    "config/tool-downloads.json": "0df7b759cd30dab58edee1001502086b1fb950a45a64b8d0c08b3277ef796b45",
+    "constraints.txt": "dc54012cec436bc02c1e0a2d0c419b052f1036e6799dd802b6f7e3f2104c857a",
+    "docker-compose.yml": "c8c6de68aaed4e00c7b5f7a553cb64b72515054677b841b3666f4d7c0b5e50f0",
+    "docker/apktool.sh": "c03315081aaa16d850756281621c419e1159b5725c1007669b35745149cef2c9",
+    "docker/entrypoint.sh": "aff4373df32a239ec971cbb870ff612bdd34edd048e123f66dbd1a97c7a24f9e",
+    "docker/runtime.py": "990525cb5843b5f2efc9b6acc352991f409f7b983f2aa9cd30edaa4b3e0a19fb",
+    "prompts/COMMON.md": "624e8cbd40850a1ee73c3c8cf42f6e1c2bfd3c5271ca5ec97d3d0737ad704d63",
+    "pyproject.toml": "fe7e41d1e9c56c8ff636a77fb87b25efb3b971c51cdb7121c846c47a442d2dab",
+    "scripts/build.ps1": "4a1d0d21fc1915b3db8d6afa93cf2d4d4d2d0f59deaa2a4e01a74850aebb2152",
+    "scripts/build.sh": "2fb341f3939aa86ed36428e04d508dad2cf24e6b59075e40f81b641eb66e5eef",
+    "scripts/check_codex.py": "7df9740a59083fdbe927ce0b82903017385938d802228e2eb3daded7583d4c6b",
+    "scripts/control.py": "c4d2af1b720cb9a4dea37df9214aeea4093c9620993c67cdec73139ea4c8e6ab",
+    "scripts/finder.ps1": "90dffab1543956411435b6fb71daad01cc2f8fa3dee12e9c83bee0c2a4d8042a",
+    "scripts/finder.sh": "5ce170bd42760e85a817e651df60fb406eac55e33d128366db89cf6f4efda6aa",
+    "scripts/install-command.sh": "fd3506eaa07ab4405f65e46c8c7218cd17b7fed714dd63546266d2dbe3b8664c",
+    "scripts/install_command.py": "fd1d8dd9e948e3d4f5f2def1ff62e4651966a2634102a3791524798b23045e7b",
+    "scripts/install_optional_tools.py": "cc20ced5ff3320c9d8f57908b9bb6630572e459a2779cb3e59d28006e787562b",
+    "scripts/login.ps1": "a3e9dac39299b5d78137b5f2525a749f028db0832a8981fa19b466bcd9a9c210",
+    "scripts/login.sh": "903668e64036c46e55960820f0c073501d0f0a0adc8c56ee10bc32e5892bc7ba",
+    "scripts/package_source.py": "3d4b42940ff3239d1276fa8039f1257549f5bfc3574620e1b94a177a72c463bd",
+    "scripts/smoke-test.ps1": "0602993764bee5ecdf62936ab1c715d4f5cbb4b6e8649f373ab95d4a248dbadb",
+    "scripts/smoke-test.sh": "33a50b6d960179ef6da5e13b4670478bcdbff1009719c90ab6be768f12920eec",
+    "src/ctf_mcp/__init__.py": "9ae55e59afa3d80699d209104a40ddd652490a4aaf528588f8ab3ff2f1e0ced9",
+    "src/ctf_mcp/aab_xml.py": "c1aa23adc74bf5a444d72f5c7470262a4c93daa5c414715e11cb50161fc82897",
+    "src/ctf_mcp/api_analysis.py": "cad90a357b75504adfbd84c7d70888292da71b058aa145dac4dd80574c445239",
+    "src/ctf_mcp/artifacts.py": "daa87c3d1765a973f5105567b0d75f96de6e373637ecad82ca64d95364bd3567",
+    "src/ctf_mcp/browser_sessions.py": "9cb10abbb4aec689b2d01814cbf2b522b88a5250ee7b58fbd0af1fb047725eb6",
+    "src/ctf_mcp/burp_adapter.py": "13068bdf304db3b851fcecd0976e4d78760848387a3e3b3692b72c264445fada",
+    "src/ctf_mcp/cli.py": "aae18b206ad998edd8e3ddc091ce29fbdc653259d36049a13e0b133ae6f195ea",
+    "src/ctf_mcp/config.py": "023740722a41baad917d1c104b6e3107143480c486c5e82786bd9e5fd7a02f77",
+    "src/ctf_mcp/device_adapter.py": "ac4c45192ba7c207c4a02ce9a6d254dd480bd6984e385b8b7e9ba3ccc933b604",
+    "src/ctf_mcp/engine.py": "ad1d99fe2404d6d6749cf759f91ad32749313aa40c8152a422d0541fe3c68aa7",
+    "src/ctf_mcp/extended.py": "f06450c70da86443400a8ec7761b1a6d537787c70c7380659fd1b545c44d242b",
+    "src/ctf_mcp/ghidra_scripts/FinderMetadata.java": "c9fdbc66fefb506937d8babbdde6106b94a249003538cae90391a319420dc9ba",
+    "src/ctf_mcp/healthcheck.py": "85387d1dccf6ee5a429521c2cb2feb402ab6c6ea6615cdb6fcd9396be75ab407",
+    "src/ctf_mcp/native_tools.py": "b04af982d844b3221596929bdba6ca768f6615e18b0bb9faae376dfd1dd61ad2",
+    "src/ctf_mcp/platform_views.py": "32d158be8bfdf30f32a65473296f61685d454a3d07191950a79bbe286940b29b",
+    "src/ctf_mcp/platforms.py": "f1f9d3af1132dba8ca1f93833ca2df00b46cfd5a9ed0245e526825bad872ca13",
+    "src/ctf_mcp/records.py": "edfd373af16ab3de4a1345a2e749034d60a3269f8698a631de9d84f760b9febd",
+    "src/ctf_mcp/redaction.py": "b27e1eff02e42c8331cec6671d4a137051fce74f469f73791934f32908718d55",
+    "src/ctf_mcp/research_control.py": "edd6e873d9ab41810044c957b45ee8ed602df0922c6d9b4fef89c7e883e31905",
+    "src/ctf_mcp/research_policy.py": "45e0be2745776b28f532922d68543043e6c3110d4f047734f1bbdfad16172b80",
+    "src/ctf_mcp/safety.py": "73df689ab9541423649608959b1fb59b2f5449e09eb1256bf15fa26edde6511d",
+    "src/ctf_mcp/server.py": "03ffc30d686888bbbb73b65aacc55639332a8463b5dc9c9ac93a747201f73019",
+    "src/ctf_mcp/sessions.py": "78c8aa1a76760c855d6b3f8db47c272444a04ed26f9595ffe53f5281dc829b7a",
+    "src/ctf_mcp/source_analysis.py": "381a7b660850657adb3605b963b6814deadc114b18a00339b9ba15102a91b0a9",
+    "src/ctf_mcp/web.py": "26f623fff5799168ab19bb09a893cc9fbabdc17b93ecd22ae4c696b5c7223c27",
+    "src/ctf_mcp/worker.py": "273c46e6cac9ed1cb7f740f3790583472cad8b4af2ed441fae57a93b2649deb8",
+    "tests/conftest.py": "f0f95ed1f06bdab6b404fc21e868569883addbbbe6e974a72974ce17f66a4fa8",
+    "tests/test_analysis.py": "d1d87c2fbe439bff42d1f8ad209784c7ce5da282b34736aca3c573ff0c163a03",
+    "tests/test_burp_adapter.py": "40abfc8a76e128491914291f8b1319779c4bb839bdf8576383c92950bb1f02da",
+    "tests/test_device_adapter.py": "1248e6a978a53d6a467890edfe55fc9ce1406586d697ab8eb65f0616fa702796",
+    "tests/test_distribution.py": "659011f8bf9fc7381d5fd2a7f884450f4fdd3d230db75faa3c92528fe0a5bc56",
+    "tests/test_mcp.py": "50de32ff4da696b6453c89c056a98b5e9c63d1c0cd558c9ab242cfec9963389b",
+    "tests/test_optional_native.py": "364c2bd49678407b903bb25ed5026f715bc6461c4a203d5b2f9c38989bd1d4b7",
+    "tests/test_persistent_sessions.py": "6a528d7aeb18d39fc61eeb4e7d97951a2462a9832a3d6c2c4d172492836fe892",
+    "tests/test_safety_records.py": "b33948ebaf81d2e4e7a29c8fd28d5632265a88c8e3f7cbe68272e6f47516867e",
+    "tests/test_skills_lifecycle.py": "7edc5ac349ccc9e3423716e950419f564334c814d1edd04cdd12899fb71bc4fe",
+    "tests/test_upgrade_offline.py": "ce43cc5f3cc76de885b11db169d5fc8a3942556f785bc96b23301fd6c420dbdf",
+    "tests/test_web.py": "cd51351439339da8024d5c9ef5cd56b7023b776d9bde69ab75c1ebf4da841c7b"
+  }
+}

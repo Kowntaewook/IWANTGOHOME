@@ -1,0 +1,1 @@
+{"openapi": "3.1.0", "paths": {"/status": {"get": {"security": [], "responses": {"200": {"description": "OK"}}}}}}

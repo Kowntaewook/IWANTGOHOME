@@ -1,0 +1,47 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.DS_Store
+.env
+.operator/
+workspace/
+workspace-2/
+work/
+ghidra-projects/
+ghidra-projects-2/
+results/
+auth.json
+.codex/
+*.log
+dist/
+browser-state/
+browser-sessions/
+storage-state*.json
+
+# Secrets / authentication
+.env
+.env.*
+!.env.example
+.codex/
+auth.json
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime / research data
+evidence/
+reports/
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Cache
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store

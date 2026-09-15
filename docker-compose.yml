@@ -1,0 +1,177 @@
+name: something-finder-codex
+x-analysis: &analysis
+  build:
+    context: .
+    target: analysis
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 1g
+  cpus: 2
+  tmpfs: ["/tmp:rw,nosuid,nodev,size=128m,mode=1777"]
+  volumes:
+    - type: bind
+      source: ${FINDER_INPUT_DIR:-./examples}
+      target: /inputs
+      read_only: true
+      bind:
+        create_host_path: false
+    - evidence-v1:/results
+  networks: [analysis-internal]
+  logging:
+    driver: none
+  healthcheck:
+    test: [CMD, python, -m, ctf_mcp.healthcheck]
+    interval: 30s
+    timeout: 10s
+    start_period: 10s
+    retries: 3
+services:
+  analysis:
+    <<: *analysis
+  codex:
+    build:
+      context: .
+      target: codex
+    profiles: [runtime]
+    depends_on:
+      analysis:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=128m,mode=1777"]
+    volumes:
+      - codex-state-v1:/home/node/.codex
+    environment:
+      FINDER_WEB: ${FINDER_WEB:-0}
+      FINDER_PLATFORM: ${FINDER_PLATFORM:-0}
+      FINDER_MODEL: ${FINDER_MODEL:-}
+      FINDER_PROFILES: ${FINDER_PROFILES:-}
+      FINDER_ANDROID: ${FINDER_ANDROID:-0}
+      FINDER_ANDROID_DYNAMIC: ${FINDER_ANDROID_DYNAMIC:-0}
+      FINDER_BINARY: ${FINDER_BINARY:-0}
+      FINDER_BURP: ${FINDER_BURP:-0}
+    networks: [analysis-internal, model-egress]
+    logging:
+      driver: none
+  platform:
+    <<: *analysis
+    build:
+      context: .
+      target: platform
+    profiles: [platform]
+  android:
+    <<: *analysis
+    build:
+      context: .
+      target: android
+    profiles: [android]
+    mem_limit: 2g
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=512m,mode=1777"]
+  binary:
+    <<: *analysis
+    build:
+      context: .
+      target: binary
+    profiles: [binary]
+    mem_limit: 3g
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=512m,mode=1777"]
+  android-dynamic:
+    <<: *analysis
+    build:
+      context: .
+      target: android-dynamic
+    profiles: [android-dynamic]
+    networks: [analysis-internal, host-adapter-egress]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      FINDER_ADB_ENDPOINT: ${FINDER_ADB_ENDPOINT:-}
+      FINDER_FRIDA_ENDPOINT: ${FINDER_FRIDA_ENDPOINT:-}
+  burp:
+    <<: *analysis
+    build:
+      context: .
+      target: burp
+    profiles: [burp]
+    networks: [analysis-internal, host-adapter-egress]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      BURP_MCP_URL: ${BURP_MCP_URL:-}
+      BURP_MCP_TOKEN: ${BURP_MCP_TOKEN:-}
+      BURP_MCP_TRANSPORT: ${BURP_MCP_TRANSPORT:-sse}
+  observer:
+    <<: *analysis
+    build:
+      context: .
+      target: browser
+    profiles: [web]
+    mem_limit: 2g
+    pids_limit: 256
+    shm_size: 256m
+    networks: [analysis-internal, observation-egress]
+    volumes:
+      - type: bind
+        source: ${FINDER_INPUT_DIR:-./examples}
+        target: /inputs
+        read_only: true
+        bind:
+          create_host_path: false
+      - evidence-v1:/results
+      - browser-sessions-v1:/browser-state
+      - type: bind
+        source: ./.operator/grants
+        target: /grants
+        read_only: true
+        bind:
+          create_host_path: false
+  operator:
+    build:
+      context: .
+      target: analysis
+    profiles: [operator]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=64m,mode=1777"]
+    stdin_open: true
+    tty: true
+    entrypoint: [finder]
+    environment:
+      FINDER_CONFIG: /etc/finder/browser.json
+    volumes:
+      - browser-sessions-v1:/browser-state
+      - type: bind
+        source: ./.operator/grants
+        target: /grants
+        bind:
+          create_host_path: false
+  test:
+    build:
+      context: .
+      target: test
+    profiles: [verify]
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 3g
+    pids_limit: 256
+    shm_size: 256m
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=512m,mode=1777"]
+networks:
+  analysis-internal:
+    internal: true
+  model-egress: {}
+  observation-egress: {}
+  host-adapter-egress: {}
+volumes:
+  codex-state-v1: {}
+  evidence-v1: {}
+  browser-sessions-v1: {}
