@@ -14,6 +14,20 @@ OPTIONAL = (("FINDER_WEB", "web", "observer"), ("FINDER_PLATFORM", "platform", "
     ("FINDER_BINARY", "binary", "binary"), ("FINDER_BURP", "burp", "burp"))
 
 
+def operator_file(value):
+    path = Path(value).absolute()
+    if any(p.is_symlink() for p in (path, *path.parents)) or not path.is_file():
+        raise ValueError("Operator inputs must be regular files without symlink ancestors")
+    return path
+
+
+def prepare_operator_dirs():
+    for name in (".operator", ".operator/grants", ".operator/programs"):
+        path = ROOT / name
+        if path.is_symlink():raise ValueError("Operator directories must not be symlinks")
+        path.mkdir(parents=True, exist_ok=True, mode=0o755)
+
+
 def stop_oneoffs(run=subprocess.run):
     # Compose stop may exclude containers created by compose run. Stop only the
     # remaining containers with this exact new project's label, never remove data.
@@ -44,18 +58,56 @@ def commands(action, extra, env):
     if action == "stop":return [compose + [part for _, profile, _ in OPTIONAL for part in ("--profile", profile)] + ["stop"]]
     if action == "test":return [compose + ["--profile", "verify", "build", "test"],
                                 compose + ["--profile", "verify", "run", "--rm", "test"] + extra]
+    if action in {"program", "plan"}:
+        cmd = compose + ["--profile", "operator", "run", "--rm", "--no-deps"]
+        if hasattr(os, "getuid"):cmd += ["--user", str(os.getuid()) + ":" + str(os.getgid())]
+        if action == "program":
+            if not extra:raise ValueError("program requires a subcommand")
+            operation = extra[0]
+            counts = {"list": 1, "status": 1, "show": 2, "create": 2, "import": 2, "approve": 2, "revoke": 2, "use": 2}
+            if operation not in counts or len(extra) != counts[operation]:raise ValueError("invalid program command")
+            if operation == "import":
+                policy = operator_file(extra[1])
+                if policy.is_symlink() or not policy.is_file() or policy.suffix.lower() not in {".json", ".yaml", ".yml"}:
+                    raise ValueError("program import requires a regular JSON/YAML policy file")
+                cmd += ["-v", str(policy) + ":/policy" + policy.suffix.lower() + ":ro"]
+                extra = ["import", "/policy" + policy.suffix.lower()]
+            return [cmd + ["operator", "program", *extra]]
+        if not extra or extra[0] not in {"create", "approve"}:raise ValueError("plan requires create or approve")
+        if extra[0] == "approve":
+            if len(extra) != 2:raise ValueError("plan approve requires one file")
+            plan = operator_file(extra[1])
+            if plan.is_symlink() or not plan.is_file():raise ValueError("plan must be a regular file")
+            return [cmd + ["-v", str(plan) + ":/plan.json:ro", "operator", "plan", "approve", "/plan.json"]]
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--program")
+        parser.add_argument("--identity", default="anonymous", choices=["anonymous", "user_a", "user_b"])
+        parser.add_argument("--start-url", required=True)
+        parser.add_argument("--output")
+        options = parser.parse_args(extra[1:])
+        forwarded = ["create", "--identity", options.identity, "--start-url", options.start_url]
+        if options.program:forwarded += ["--program", options.program]
+        if options.output:
+            output = Path(options.output).absolute()
+            if output.exists() or output.is_symlink():raise ValueError("output already exists")
+            if any(p.is_symlink() for p in output.parents):raise ValueError("output parent must not be a symlink")
+            parent = output.parent.resolve(strict=True)
+            cmd += ["-v", str(parent) + ":/plan-output"]
+            forwarded += ["--output", "/plan-output/" + output.name]
+        return [cmd + ["operator", "plan", *forwarded]]
     if action == "session-import":
-        if len(extra) != 2 or extra[0] not in {"user_a", "user_b"}:raise ValueError("session-import requires identity and storage-state file")
-        state = Path(extra[1]).resolve(strict=True)
+        if len(extra) not in {2, 4} or extra[0] not in {"user_a", "user_b"}:raise ValueError("session-import requires identity and storage-state file")
+        if len(extra) == 4 and extra[2] != "--program":raise ValueError("expected --program ID")
+        state = operator_file(extra[1])
         if not state.is_file():raise ValueError("Storage state must be a file")
         return [compose + ["--profile", "operator", "run", "--rm", "--no-deps", "--user", "1000:1000",
-            "-v", str(state) + ":/session-import.json:ro", "operator", "session-import", extra[0], "/session-import.json"]]
+            "-v", str(state) + ":/session-import.json:ro", "operator", "session-import", extra[0], "/session-import.json", *extra[2:]]]
     if action in {"approve", "revoke"}:
         if len(extra) != 1:raise ValueError(action + " requires one plan path or grant ID")
         cmd = compose + ["--profile", "operator", "run", "--rm", "--no-deps"]
         if hasattr(os, "getuid"):cmd += ["--user", str(os.getuid()) + ":" + str(os.getgid())]
         if action == "approve":
-            plan = Path(extra[0]).resolve(strict=True)
+            plan = operator_file(extra[0])
             if not plan.is_file():raise ValueError("plan must be a regular file")
             cmd += ["-v", str(plan) + ":/plan.json:ro", "operator", "approve", "/plan.json"]
         else:cmd += ["operator", "revoke", extra[0]]
@@ -65,7 +117,7 @@ def commands(action, extra, env):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import"])
+    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan"])
     args, extra = parser.parse_known_args()
     if args.action == "install":
         subprocess.run([sys.executable, str(ROOT / "scripts/install_command.py"), *extra], check=True)
@@ -74,8 +126,8 @@ def main():
         print("Docker CLI not found. Install Docker Engine + Compose v2 (Linux) or Docker Desktop (macOS/Windows). No services or data were changed.", file=sys.stderr)
         raise SystemExit(2)
     # Create only this new project's operator directories; never adopt old volumes.
-    (ROOT / ".operator/grants").mkdir(parents=True, exist_ok=True, mode=0o755)
     try:
+        prepare_operator_dirs()
         for cmd in commands(args.action, extra, os.environ):
             subprocess.run(cmd, cwd=ROOT, check=True, shell=False)
         if args.action == "stop":stop_oneoffs()

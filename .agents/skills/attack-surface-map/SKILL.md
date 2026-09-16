@@ -19,6 +19,7 @@ Use only the selected files, IDs and context above. Preserve the user's existing
 
 ## Available tools
 
+- tool: `program_rules`
 - tool: `inventory`
 - tool: `source_entrypoints`
 - tool: `source_dependency_map`
@@ -33,6 +34,7 @@ Service dependency: analysis. Check the actual running tools/list; an absent ser
 2. Extract declared routes, API operations, imports and origins from existing evidence. Keep declared, observed and inferred entries distinct.
 3. Group entries by component and expected authentication boundary. Reference file/line or observation IDs.
 4. Mark missing source and runtime enforcement evidence. Newly mentioned domains remain uncontacted.
+5. For program-bound work, retain the program ID and read program_rules before classifying candidates. Excluded finding categories affect eligibility annotations only; they never authorize testing.
 
 ## Evidence
 

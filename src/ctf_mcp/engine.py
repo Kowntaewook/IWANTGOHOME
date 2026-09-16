@@ -14,12 +14,26 @@ from .records import Records, VERSION, digest
 from .safety import SafeRoot
 
 
+def _playwright_browsers_path():
+    configured = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if configured:
+        return configured
+
+    home = Path.home()
+
+    if sys.platform == "darwin":
+        return str(home / "Library" / "Caches" / "ms-playwright")
+
+    return str(home / ".cache" / "ms-playwright")
+
+
 def run_worker(settings, request, *, seconds=None, stop=None):
     payload = json.dumps({"settings": asdict(settings), "request": request}, default=str).encode()
     if len(payload) > 65536:raise Rejected("worker_request_limit")
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1",
            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
-           "HOME": "/tmp", "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", str(Path.home() / ".cache/ms-playwright"))}
+           "HOME": "/tmp",
+           "PLAYWRIGHT_BROWSERS_PATH": _playwright_browsers_path()}
     env["FINDER_TOOL_ROOT"] = os.environ.get("FINDER_TOOL_ROOT", "/opt/finder-tools")
     if request.get("operation") == "device":
         for key in ("FINDER_ADB_ENDPOINT", "FINDER_FRIDA_ENDPOINT"):
@@ -37,6 +51,7 @@ def run_worker(settings, request, *, seconds=None, stop=None):
                 if time.monotonic() >= deadline:raise Rejected("worker_time_limit")
                 try:proc.wait(timeout=0.05)
                 except subprocess.TimeoutExpired:pass
+            if time.monotonic() >= deadline:raise Rejected("worker_time_limit")
             if proc.returncode != 0:raise Rejected("worker_failed_or_resource_limit")
             if output.tell() > settings.limits.output_bytes:raise Rejected("worker_output_limit")
             output.seek(0)
@@ -55,7 +70,7 @@ def run_worker(settings, request, *, seconds=None, stop=None):
 class Engine:
     def __init__(self, settings):
         self.settings = settings
-        self.records = Records(settings.results_root, settings.limits)
+        self.records = Records(settings.results_root, settings.limits, settings.programs_root)
         self.lock = threading.BoundedSemaphore(2)
 
     def analyze(self, analyzer, path, **options):

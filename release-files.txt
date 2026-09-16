@@ -21,6 +21,7 @@
 AGENTS.md
 Dockerfile
 README.md
+IWANTGOHOME
 config/analysis.json
 config/browser.json
 config/codex.toml
@@ -33,6 +34,8 @@ docker/runtime.py
 docs/ADAPTERS.md
 docs/CAPABILITY_MATRIX.md
 docs/CHANGES.md
+docs/PROGRAMS.md
+docs/PROGRAMS_VALIDATION.md
 docs/DESIGN_MAPPING.md
 docs/RESEARCH_SOURCES.md
 docs/SECURITY_MODEL.md
@@ -43,6 +46,7 @@ docs/VALIDATION.md
 docs/tool-schemas.json
 docs/validation-results.json
 examples/README.md
+examples/program.example.json
 examples/make_fixtures.py
 examples/session-plan.json
 examples/synthetic/api.json
@@ -103,6 +107,10 @@ src/ctf_mcp/records.py
 src/ctf_mcp/redaction.py
 src/ctf_mcp/research_control.py
 src/ctf_mcp/research_policy.py
+src/ctf_mcp/programs.py
+src/ctf_mcp/program_store.py
+src/ctf_mcp/program_cli.py
+src/ctf_mcp/program_tools.py
 src/ctf_mcp/safety.py
 src/ctf_mcp/server.py
 src/ctf_mcp/sessions.py
@@ -117,6 +125,8 @@ tests/test_distribution.py
 tests/test_mcp.py
 tests/test_optional_native.py
 tests/test_persistent_sessions.py
+tests/test_programs.py
+tests/test_program_integration.py
 tests/test_safety_records.py
 tests/test_skills_lifecycle.py
 tests/test_upgrade_offline.py

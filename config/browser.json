@@ -2,6 +2,7 @@
   "input_root": "/inputs",
   "results_root": "/results",
   "grants_root": "/grants",
+  "programs_root": "/programs",
   "browser_root": "/browser-state",
   "limits": {}
 }

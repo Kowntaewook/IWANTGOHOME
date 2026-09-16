@@ -89,13 +89,21 @@ class Grant:
             self.expires = datetime.fromisoformat(obj["expires_at"])
             if self.expires.tzinfo is None:raise Rejected("invalid_grant_expiry")
         except (ValueError, KeyError, TypeError):raise Rejected("invalid_grant") from None
+        self.program_profile = None
+        if "program" in self.plan:
+            from .program_store import ProgramStore
+            from .programs import validate_program_plan
+            self.program_store = ProgramStore(settings.programs_root)
+            self.program_profile = self.program_store.bound(self.plan["program"])
+            validate_program_plan(self.plan, self.program_profile)
         self.live()
 
     def live(self):
         if datetime.now(timezone.utc) >= self.expires:raise Rejected("grant_expired")
         if self.reader.read(self.id + ".json", 32768) != self.raw:raise Rejected("grant_changed_or_revoked")
+        if self.program_profile is not None:self.program_store.bound(self.plan["program"])
 
-    def check_url(self, value):
+    def check_url(self, value, method="GET"):
         self.live()
         if value in self.plan["excluded_urls"]:raise Rejected("url_excluded")
         browser = "identity_label" in self.plan
@@ -106,10 +114,15 @@ class Grant:
             except Rejected as exc:
                 if str(exc) == "url_excluded":raise
         if canonical not in self.plan["allowed_urls"]:raise Rejected("url_not_approved")
+        if self.program_profile is not None:
+            from .programs import scope_decision
+            if method not in self.plan["allowed_methods"]:raise Rejected("program_method_blocked")
+            decision = scope_decision(self.program_profile, canonical, method)
+            if not decision["allowed"]:raise Rejected(decision["reason"])
         return canonical
 
-    def addresses(self, value):
-        u = urlsplit(self.check_url(value))
+    def addresses(self, value, method="GET"):
+        u = urlsplit(self.check_url(value, method))
         # Resolution occurs once per request. Connections below use the checked numeric
         # address, retaining the original hostname only for TLS verification and Host.
         records = socket.getaddrinfo(u.hostname, u.port or (443 if u.scheme in {"https", "wss"} else 80), type=socket.SOCK_STREAM)
@@ -118,6 +131,9 @@ class Grant:
         nets = [ipaddress.ip_network(c) for c in self.plan["private_cidrs"]]
         for value in ips:
             addr = ipaddress.ip_address(value)
+            if self.program_profile is not None:
+                from .programs import address_allowed
+                if not address_allowed(self.program_profile, value):raise Rejected("program_destination_blocked")
             if addr.is_multicast or addr.is_unspecified:raise Rejected("destination_address_blocked")
             if not addr.is_global and not any(addr.version == n.version and addr in n for n in nets):
                 raise Rejected("private_destination_not_approved")
@@ -129,6 +145,8 @@ class Fetcher:
         self.grant, self.stop, self.audit = grant, stop, audit
         self.started, self.requests, self.bytes = time.monotonic(), 0, 0
         self.plan = grant.plan
+        from .research_policy import RequestBudget
+        self.budget = RequestBudget(self.plan) if "program" in self.plan else None
 
     def check(self):
         if self.stop.is_set():raise Rejected("observation_stopped")
@@ -140,6 +158,11 @@ class Fetcher:
         return max(0.01, min(2.0, self.plan["seconds"] - (time.monotonic() - self.started)))
 
     def get(self, url):
+        if self.budget:
+            with self.budget.request():return self._get(url)
+        return self._get(url)
+
+    def _get(self, url):
         self.check()
         if self.requests >= self.plan["max_requests"]:raise Rejected("request_limit")
         url = self.grant.check_url(url)
@@ -296,6 +319,7 @@ class Observer:
                 try:
                     self.records.save("web_audit", {"job": job.id, "grant": grant.id,
                         "event": "supervisor_finished", "state": state})
+                    if grant.program_profile is not None:result.update(program_evidence(grant))
                     record = self.records.save("analysis", result)
                     job.record_id = record["id"]
                 except Exception:
@@ -303,7 +327,10 @@ class Observer:
                 job.state = state
                 job.done.set()
         threading.Thread(target=run, daemon=True, name="observation-" + job.id).start()
-        return {"job_id": job.id, "state": job.state}
+        result = {"job_id": job.id, "state": job.state}
+        if "program" not in grant.plan:
+            result["warnings"] = ["DEPRECATED: legacy plan without a program binding; migrate with program/plan CLI."]
+        return result
 
     def status(self, job_id):
         job = self.jobs.get(valid_id(job_id))
@@ -335,13 +362,23 @@ class Observer:
             "note": "Pause blocks subsequent sends; already transmitted requests cannot be recalled. Runtime budget continues."}
 
 
+def program_evidence(grant):
+    if grant.program_profile is None:return {}
+    from .programs import scope_decision
+    profile = grant.program_profile
+    decision = scope_decision(profile, grant.plan["start_url"], grant.plan["allowed_methods"][0])
+    return {"program": grant.plan["program"], "program_id": profile["program_id"],
+            "program_name": profile["name"], "asset": public_url(grant.plan["start_url"]),
+            "matched_scope_rule": decision["matched_rule"]}
+
+
 def worker_observe(settings, request):
     # Network/process deadline enforced by the parent even if DNS or Chromium hangs.
     grant = Grant(settings, request["grant_id"])
     records, events = Records(settings.results_root, settings.limits), []
     def audit(kind, payload):
         record = records.save("web_audit", {"job": request["job_id"], "grant": grant.id,
-            "event": kind, "details": payload})
+            "event": kind, "details": payload, **program_evidence(grant)})
         events.append(record["id"])
     from .research_control import FileControl
     fetcher = Fetcher(grant, FileControl(settings, request["job_id"], grant), audit)
@@ -359,7 +396,7 @@ def worker_observe(settings, request):
     except Exception:
         result = {"error": "observation_network_or_browser_failure"}
         audit("observation_failed", {})
-    return {"analyzer": "web_" + request["mode"],
+    return {"analyzer": "web_" + request["mode"], **program_evidence(grant),
         "identity_label": grant.plan.get("identity_label", "anonymous"),
         "input": {"grant_id": grant.id, "sha256": digest(grant.raw)},
         "result": result, "audit_record_ids": events,

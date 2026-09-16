@@ -1,0 +1,179 @@
+HSPACE / FORGE 버그바운티 범위 안에서 새로운 취약점을 찾아라.
+
+이번 작업에서는 기존 후보나 이전 분석에 의존하지 말고, 현재 서비스 상태를 기준으로 공격면을 새로 정리한 뒤 고가치 취약점을 우선적으로 탐색해라.
+
+목표는 단순한 정보성 이슈가 아니라 실제 인증, 권한, 데이터, 서버 동작 경계를 넘는 취약점을 찾는 것이다.
+
+우선순위:
+
+1. 인증 우회
+2. 권한 상승
+3. BOLA / IDOR
+4. Next.js Server Action 권한 검증 누락
+5. 관리자/운영자 기능 접근
+6. 객체 소유권 검증 누락
+7. 민감 데이터 노출
+8. 파일 업로드/다운로드 권한 문제
+9. OAuth / 세션 처리 문제
+10. SSRF
+11. SQL / NoSQL / Command / Template Injection
+12. Path Traversal / 임의 파일 접근
+
+특히 다음 형태의 기능을 우선 분석해라.
+
+- create
+- update
+- delete
+- remove
+- cancel
+- approve
+- reject
+- invite
+- join
+- leave
+- manage
+- upload
+- download
+- export
+
+그리고 다음 파라미터를 받는 기능은 높은 우선순위로 본다.
+
+- userId
+- memberId
+- teamId
+- reservationId
+- competitionId
+- challengeId
+- submissionId
+- ownerId
+- role
+- permission
+- isAdmin
+- isManager
+- isLeader
+
+분석 순서:
+
+1. 정상 UI를 직접 확인한다.
+2. Network 요청과 RSC 요청을 관찰한다.
+3. 공개 JavaScript chunk를 분석한다.
+4. Server Action 이름과 입력 파라미터를 정리한다.
+5. 상태 변경 기능부터 우선순위를 매긴다.
+6. 정상 요청을 기준으로 서버가 어떤 값을 신뢰하는지 확인한다.
+7. 실제 권한 검증이 서버에서 수행되는지 최소 변경으로 검증한다.
+
+Next.js 특성상 Server Action을 중요 공격면으로 취급해라.
+
+각 Server Action마다 반드시 다음을 판단한다.
+
+- 인증이 필요한가?
+- 서버가 세션을 확인하는가?
+- 서버가 객체 소유권을 확인하는가?
+- 서버가 역할을 직접 계산하는가?
+- 클라이언트가 전달한 role / isAdmin / isLeader 등의 값을 신뢰하는가?
+- 객체 ID만 변경하면 다른 객체에 영향을 줄 수 있는가?
+- competitionId와 challengeId처럼 서로 연관된 객체 조합을 서버가 검증하는가?
+
+HTTP 200만으로 성공이라고 판단하지 마라.
+
+다음을 함께 확인한다.
+
+- RSC 응답 내용
+- error
+- digest
+- redirect
+- mutation result
+- 실제 객체 상태 변화
+
+테스트 계정은 내가 소유한 A/B 두 계정만 사용한다.
+
+인가 테스트가 필요하면:
+
+A 계정
+→ 테스트 객체 생성
+
+B 계정
+→ A가 만든 테스트 객체에 대해 최소 교차 계정 요청
+
+방식으로 검증한다.
+
+타 사용자의 객체 ID를 수집하거나 추측하지 마라.
+
+한 후보당 최소 요청만 사용하고, 취약성이 확인되면 즉시 추가 exploitation을 중단한다.
+
+다음 행위는 금지한다.
+
+- brute force
+- ID enumeration
+- mass scanning
+- DoS
+- rate-limit 시험
+- 타 사용자 데이터 열람
+- 타 사용자 데이터 수정/삭제
+- 실제 운영 데이터 훼손
+- 관리자 권한 획득 후 추가 행동
+- 내부망 스캔
+- 클라우드 metadata 접근
+- 세션 쿠키 출력
+- 세션 파일 삭제/수정
+- 실제 비밀값 저장
+
+가능하면 먼저 정적 분석과 읽기 전용 검증을 수행한다.
+
+새 후보를 발견하면 다음 형식으로 정리해라.
+
+Candidate:
+취약점 이름:
+취약점 유형:
+대상 URL / Server Action:
+필요 권한:
+공격 전제조건:
+공격 흐름:
+서버측 여부:
+영향 받는 보안 경계:
+Confidentiality 영향:
+Integrity 영향:
+Availability 영향:
+예상 CVSS:
+예상 등급:
+Confidence:
+현재 증거:
+다음 안전 검증:
+
+특히 High 이상 가능성이 있는 경우 즉시 우선순위를 높여라.
+
+High 가치 신호 예시:
+
+- 일반 사용자가 관리자 액션 호출 가능
+- 다른 본인 계정의 객체 수정 가능
+- 객체 ID만 바꿔 권한 경계 우회
+- role / isAdmin / isLeader 클라이언트 신뢰
+- 인증 없이 상태 변경 액션 호출
+- private 데이터가 낮은 권한에서 노출
+- OAuth 세션 혼동
+- 서버측 임의 URL fetch
+- 서버 파일 접근
+- 서버측 injection
+- 파일 업로드가 서버 코드 실행 또는 임의 파일 접근으로 연결
+
+반대로 아래는 낮은 우선순위로 처리한다.
+
+- 보안 헤더 누락
+- 단순 버전 노출
+- 관리자 URL 노출
+- harmless stack trace
+- UI 버그
+- Self-XSS
+- 실제 영향 없는 client-side 이슈
+- rate limiting
+- 구버전 라이브러리 사용 사실 자체
+
+새로운 기능을 발견할 때마다 항상 다음 두 질문을 먼저 해라.
+
+"이 요청에서 서버가 신뢰해서는 안 되는 클라이언트 입력은 무엇인가?"
+
+"서버는 이 사용자가 이 객체를 실제로 조작할 권한이 있는지 어디서 검증하는가?"
+
+가능한 공격면을 넓게 보는 것보다 실제 권한 경계를 넘을 수 있는 후보를 깊게 검증하는 것을 우선한다.
+
+새로운 취약점 후보를 발견하면 안전한 최소 PoC까지만 수행하고, 결과를 정리해서 나에게 보고해라.

@@ -40,6 +40,7 @@ class SessionBrowser:
         self.budget = RequestBudget(self.plan)
         self.control = FileControl(settings, job, grant)
         self.observations = []
+        self.scope_candidates = []
 
     def check(self):
         if self.control.is_set():raise Rejected("observation_stopped")
@@ -51,6 +52,20 @@ class SessionBrowser:
         entry = clean({"event": kind, **data})
         self.observations.append(entry)
         self.audit("session_" + kind, {"identity_label": self.identity, **entry})
+
+    def propose_scope_candidate(self, url, method, reason):
+        if reason != "url_not_approved" or self.grant.program_profile is None:return
+        from .programs import scope_decision
+        from .web import canonical_url
+        decision = scope_decision(self.grant.program_profile, url, method)
+        if not decision["allowed"]:return
+        u = urlsplit(canonical_url(url, browser=True))
+        candidate = {"origin": u.scheme + "://" + u.netloc, "path": u.path,
+                     "method": method, "query_values_withheld": bool(u.query),
+                     "requires_human_approval": True, "network_request_sent": False}
+        if candidate not in self.scope_candidates:
+            if len(self.scope_candidates) >= 100:raise Rejected("scope_candidate_limit")
+            self.scope_candidates.append(candidate)
 
     def headers(self, url, incoming):
         # Credential values stay inside this process and only reach the approved
@@ -64,7 +79,7 @@ class SessionBrowser:
 
     def request(self, url, method="GET", headers=None, body=None, resource="other", websocket=False):
         self.check()
-        url = self.grant.check_url(url)
+        url = self.grant.check_url(url, method)
         if method not in {"GET", "HEAD", "OPTIONS", "POST"}:raise Rejected("session_method_blocked")
         body = body or b""
         if len(body) > 65536:raise Rejected("request_body_limit")
@@ -98,7 +113,7 @@ class SessionBrowser:
             doc = parse(query[0], max_tokens=50000)
             if "__schema" in query[0] or "__type" in query[0] or any(isinstance(d, OperationDefinitionNode) and d.operation.value != "query" for d in doc.definitions):
                 raise Rejected("graphql_mutation_or_introspection_blocked")
-        ips = self.grant.addresses(url)
+        ips = self.grant.addresses(url, method)
         outgoing = self.headers(url, headers or {})
         ws_key = None
         if websocket:
@@ -122,7 +137,7 @@ class SessionBrowser:
                 lower = {k.lower(): v for k, v in header_list}
                 if response.status in {301, 302, 303, 307, 308}:
                     if "location" not in lower:raise Rejected("redirect_missing_location")
-                    self.grant.check_url(urljoin(url, lower["location"]))
+                    self.grant.check_url(urljoin(url, lower["location"]), method)
                 if websocket:
                     expected = base64.b64encode(hashlib.sha1((ws_key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
                     valid = response.status == 101 and lower.get("sec-websocket-accept") == expected
@@ -168,7 +183,7 @@ class SessionBrowser:
 
     async def _run(self):
         from playwright.async_api import async_playwright
-        store = SessionStore(self.settings)
+        store = SessionStore(self.settings, self.plan.get("program", {}).get("program_id"))
         violations = []
         with store.locked(self.identity) as directory:
             async with async_playwright() as pw:
@@ -207,6 +222,7 @@ class SessionBrowser:
                                 fulfilled[key] = fulfilled[key] + "\n" + value if key in fulfilled else value
                             await route.fulfill(status=status, headers=fulfilled, body=payload)
                         except Rejected as exc:
+                            self.propose_scope_candidate(request.url, request.method, str(exc))
                             violations.append(str(exc));self.event("blocked", url=public_url(request.url), resource_type=request.resource_type, reason=str(exc))
                             await route.abort("blockedbyclient")
                         except Exception:
@@ -221,6 +237,7 @@ class SessionBrowser:
                             header = {"cookie": "; ".join(c["name"] + "=" + c["value"] for c in cookies)}
                             self.request(ws.url, headers=header, resource="websocket_handshake", websocket=True)
                         except Rejected as exc:
+                            self.propose_scope_candidate(ws.url, "GET", str(exc))
                             violations.append(str(exc));self.event("blocked", url=public_url(ws.url), resource_type="websocket_handshake", reason=str(exc))
                         except Exception:
                             violations.append("websocket_handshake_failed")
@@ -243,8 +260,9 @@ class SessionBrowser:
                 finally:await context.close()
         return {"mode": "spa", "identity_label": self.identity, "final_status": final_status,
             "observations": self.observations, "blocked_or_incomplete": violations,
+            "scope_candidates": self.scope_candidates,
             "limitations": ["Passive initial navigation and its normal resource/API activity. No automated clicks, forms, endpoint discovery or cross-account replay.",
-                "POST requires an exact body hash in the human grant. GraphQL mutations and remote introspection are blocked.",
+                "Program-bound observations block POST. Legacy POST requires an exact body hash in the human grant; mutations and remote introspection remain blocked.",
                 "WebSocket opening handshake only; frames are not forwarded. SSE is a bounded snapshot, not a continuing subscription.",
                 "Service workers, downloads and direct browser HTTP proxy egress are disabled. This is not an OS destination firewall.",
                 "Browser profile isolation is by separate directories and locks, not separate OS users. Storage is private, not encrypted by this application."]}

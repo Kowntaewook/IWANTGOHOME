@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 .env
 .operator/
+.operator/programs/
 workspace/
 workspace-2/
 work/
@@ -19,29 +20,3 @@ dist/
 browser-state/
 browser-sessions/
 storage-state*.json
-
-# Secrets / authentication
-.env
-.env.*
-!.env.example
-.codex/
-auth.json
-secrets/
-*.pem
-*.key
-*.p12
-*.pfx
-
-# Runtime / research data
-evidence/
-reports/
-data/
-*.db
-*.db-wal
-*.db-shm
-
-# Cache
-__pycache__/
-.pytest_cache/
-*.pyc
-.DS_Store

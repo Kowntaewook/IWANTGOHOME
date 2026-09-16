@@ -36,6 +36,7 @@ class Settings:
     grants_root: Path
     limits: Limits = Limits()
     browser_root: Path | None = None
+    programs_root: Path | None = None
 
     @classmethod
     def load(cls):
@@ -47,18 +48,22 @@ class Settings:
             if p.stat().st_size > 16384:
                 raise Rejected("config_too_large")
             data = json.loads(p.read_bytes())
-            if set(data) - {"input_root", "results_root", "grants_root", "limits", "browser_root"}:
+            if set(data) - {"input_root", "results_root", "grants_root", "limits", "browser_root", "programs_root"}:
                 raise Rejected("unknown_config_key")
             paths = [Path(data[k]).resolve(strict=True) for k in
                      ("input_root", "results_root", "grants_root")]
             browser_root = Path(data["browser_root"]).resolve(strict=True) if data.get("browser_root") else None
-            validation_paths = paths + ([browser_root] if browser_root else [])
+            programs_root = Path(data["programs_root"]).absolute() if data.get("programs_root") else None
+            if programs_root is not None:
+                from .program_store import ProgramStore
+                with ProgramStore(programs_root).directory():pass
+            validation_paths = paths + ([browser_root] if browser_root else []) + ([programs_root] if programs_root else [])
             if not all(p.is_dir() for p in validation_paths):
                 raise Rejected("config_root_not_directory")
             if any(a == b or a in b.parents or b in a.parents
                    for i, a in enumerate(validation_paths) for b in validation_paths[i + 1:]):
                 raise Rejected("config_roots_must_be_disjoint")
-            return cls(*paths, Limits(**data.get("limits", {})), browser_root)
+            return cls(*paths, Limits(**data.get("limits", {})), browser_root, programs_root)
         except Rejected:
             raise
         except (OSError, ValueError, KeyError, TypeError):

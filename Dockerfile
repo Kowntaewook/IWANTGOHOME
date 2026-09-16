@@ -5,7 +5,7 @@ WORKDIR /opt/finder
 COPY pyproject.toml README.md constraints.txt ./
 COPY src ./src
 RUN pip install --no-cache-dir -c constraints.txt . && useradd --create-home --uid 1000 analyst \
-    && mkdir -p /inputs /results /grants /browser-state && chown analyst:analyst /results /grants /browser-state
+    && mkdir -p /inputs /results /grants /browser-state /programs && chown analyst:analyst /results /grants /browser-state
 COPY config/analysis.json /etc/finder/config.json
 COPY config/browser.json /etc/finder/browser.json
 USER root

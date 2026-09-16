@@ -9,19 +9,26 @@ from uuid import uuid4
 from .config import Settings, Rejected
 
 
-def approve(plan_path, grants_root, *, input_stream=None, output_stream=None):
+def approve(plan_path, grants_root, *, input_stream=None, output_stream=None, programs_root=None, require_program=False):
     from .web import validate_plan
     inp, out = input_stream or sys.stdin, output_stream or sys.stdout
     if not inp.isatty():raise Rejected("approval_requires_human_tty")
-    path = Path(plan_path)
-    if path.stat().st_size > 32768:raise Rejected("plan_too_large")
-    plan = validate_plan(json.loads(path.read_bytes()))
+    from .program_store import safe_read, ProgramStore
+    from .programs import validate_program_plan
+    plan = validate_plan(json.loads(safe_read(plan_path, 32768)))
+    store = None
+    if "program" in plan:
+        store = ProgramStore(programs_root or os.environ.get("FINDER_PROGRAMS_ROOT", "/programs"))
+        validate_program_plan(plan, store.bound(plan["program"]))
+    elif require_program:raise Rejected("program_plan_required")
+    else:print("DEPRECATED: unbound legacy plan; use program import/approve/use and plan create. Existing grant rules still apply.", file=out)
     print("Review each exact URL and private-network exception. GET can have application-specific side effects.", file=out)
     print("Approve only assets you may analyze and URLs you know are ordinary, non-mutating reads.", file=out)
     print(json.dumps(plan, indent=2, ensure_ascii=True), file=out)
     grant_id = uuid4().hex
     print("One run; expires in 15 minutes. Type APPROVE " + grant_id[-8:] + " to grant:", file=out, flush=True)
     if inp.readline().strip() != "APPROVE " + grant_id[-8:]:raise Rejected("approval_cancelled")
+    if store:validate_program_plan(plan, store.bound(plan["program"]))
     root = Path(grants_root).resolve(strict=True)
     t = datetime.now(timezone.utc)
     grant = {"id": grant_id, "plan": plan, "approved_at": t.isoformat(),
@@ -39,15 +46,19 @@ def approve(plan_path, grants_root, *, input_stream=None, output_stream=None):
 def main():
     parser = argparse.ArgumentParser(description="something-finder local operator tools")
     sub = parser.add_subparsers(dest="command", required=True)
+    from .program_cli import add_commands
+    add_commands(sub)
     grant = sub.add_parser("approve")
     grant.add_argument("plan")
     grant.add_argument("--grants", default="/grants")
+    grant.add_argument("--programs", default=os.environ.get("FINDER_PROGRAMS_ROOT", "/programs"))
     revoke = sub.add_parser("revoke")
     revoke.add_argument("grant_id")
     revoke.add_argument("--grants", default="/grants")
     session = sub.add_parser("session-import", help="Import human-provided Playwright storage state privately; never print credential values")
     session.add_argument("identity", choices=["user_a", "user_b"])
     session.add_argument("state_file")
+    session.add_argument("--program")
     analysis = sub.add_parser("analyze")
     analysis.add_argument("kind", choices=["inventory", "source", "source_tree", "har", "http_log", "openapi", "source_map", "diff", "dependencies", "infrastructure", "ios", "entitlement", "android", "certificate", "binary", "crash", "packet", "archive"])
     analysis.add_argument("path")
@@ -56,13 +67,21 @@ def main():
     export.add_argument("--output", required=True)
     args = parser.parse_args()
     try:
-        if args.command == "approve":approve(args.plan, args.grants)
+        if args.command in {"program", "plan"}:
+            from .program_cli import run
+            run(args)
+        elif args.command == "approve":approve(args.plan, args.grants, programs_root=args.programs)
         elif args.command == "session-import":
             from .sessions import SessionStore
             path = Path(args.state_file)
             if path.is_symlink() or not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:raise Rejected("unsafe_session_import_file")
             with path.open("rb") as f:raw = f.read(2 * 1024 * 1024 + 1)
-            print(json.dumps(SessionStore(Settings.load()).import_state(args.identity, raw)))
+            settings = Settings.load()
+            if args.program:
+                from .program_store import ProgramStore
+                profile, _ = ProgramStore(settings.programs_root).approved(args.program, require_active=True)
+                if args.identity not in profile["identities"]:raise Rejected("program_identity_not_allowed")
+            print(json.dumps(SessionStore(settings, args.program).import_state(args.identity, raw)))
         elif args.command == "revoke":
             from .records import valid_id
             # Human operator removal of one approval file; never touches evidence/auth.

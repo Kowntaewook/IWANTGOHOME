@@ -3,6 +3,7 @@ import argparse
 import os
 from pathlib import Path
 import shlex
+import stat
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,12 +16,16 @@ def install(bin_dir, shell_config, project_root=ROOT):
     bin_dir.mkdir(parents=True, exist_ok=True)
     target = bin_dir / "IWANTTOGOHOME"
     content = "#!/bin/sh\n# something-finder local command\nexec sh " + shlex.quote(str(launcher)) + ' "$@"\n'
+    mode = 0o755
     if target.exists() or target.is_symlink():
         if target.is_symlink() or target.read_text() != content:
             raise ValueError("IWANTTOGOHOME already exists with different contents; choose another bin directory")
+        # Repair only the owner execute bit; retain existing access restrictions.
+        mode = stat.S_IMODE(target.stat().st_mode) | stat.S_IXUSR
     else:
         with target.open("x") as stream:stream.write(content)
-        target.chmod(0o755)
+    if os.name == "posix":
+        target.chmod(mode)
     # Append one exact PATH entry, keeping every previous shell line intact.
     entry = "export PATH=" + shlex.quote(str(bin_dir)) + ':"$PATH"'
     shell_config.parent.mkdir(parents=True, exist_ok=True)

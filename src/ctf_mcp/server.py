@@ -31,6 +31,9 @@ class Candidate(BaseModel):
         "needs_review", "rejected", "needs_evidence", "remediated_pending_test"]
     remediation: str = Field(min_length=1, max_length=8000)
     evidence_ids: list[str] = Field(min_length=1, max_length=20)
+    program_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
+    asset: str | None = Field(default=None, max_length=2048)
+    finding_category: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,127}$")
 
 
 class AnalysisMCP(FastMCP):
@@ -62,6 +65,8 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     engine = Engine(settings)
     readonly = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
     localwrite = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
+    from .program_tools import register as register_programs
+    register_programs(mcp, settings, readonly)
     from .extended import register
     register(mcp, engine, role, localwrite)
     from .native_tools import register as register_native
@@ -240,7 +245,7 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     @mcp.tool(annotations=localwrite)
     def record_candidate(candidate: Candidate) -> dict[str, Any]:
         """Persist facts, concerns, assumptions, counterarguments, gaps, status, remediation and evidence IDs; cannot confirm findings."""
-        return engine.records.candidate(candidate.model_dump())
+        return engine.records.candidate(candidate.model_dump(exclude_none=True))
 
     @mcp.tool(annotations=readonly)
     def resume_research(project: str) -> dict[str, Any]:

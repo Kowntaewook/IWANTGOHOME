@@ -5,6 +5,7 @@
 !.gitignore
 !.dockerignore
 !README.md
+!IWANTGOHOME
 !AGENTS.md
 !sources.lock.json
 !docker-compose.yml

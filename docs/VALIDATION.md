@@ -1,5 +1,52 @@
 # 실제 검증 결과
 
+## 2026-09-16 launcher 권한과 noexec 구분
+
+현재 작업본: `/workspace/IWANTGOHOME`. 이번 변경은 `scripts/install_command.py`, `tests/test_upgrade_offline.py`와 이 검증 기록입니다.
+
+기존 installer는 **새 파일에 이미 0755를 설정**하고 있었습니다. 실제 `/dev/shm` 재현 파일도 `stat.S_IMODE=0755`, owner X bit가 설정된 상태였지만 `os.access(path, os.X_OK)=False`였습니다. 읽기 전용으로 확인한 `/proc/mounts`는 다음과 같았습니다:
+
+```text
+shm /dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k 0 0
+```
+
+`os.statvfs`로도 `/dev/shm`의 noexec=True, `/tmp`의 noexec=False를 확인했습니다. 따라서 이 재현의 직접 exec 실패는 파일 mode 누락이 아니라 파일시스템의 noexec였습니다. [noexec 옵션 설명](https://docs.docker.com/engine/storage/tmpfs/#options-for---tmpfs).
+
+별도의 결함으로 동일 내용인 기존 launcher에는 chmod가 적용되지 않아, 복사·복원 후 실행 비트가 사라진 경우 재설치로 복구하지 못했습니다. POSIX에서 새 파일은 0755, 동일 내용의 기존 파일은 기존 mode에 owner execute만 추가하도록 수정했습니다. 예: 0640 → 0740. 복구 후에도 noexec 경로의 X_OK는 False이며 보안 정책은 유지됩니다. 다른 내용의 명령은 내용·mode 모두 보존한 채 거부합니다. .zshrc 내용과 PATH 중복 방지 로직은 변경하지 않았습니다.
+
+권한 검사와 직접 실행 검사를 분리했습니다. 권한 검사는 pytest의 원래 tmp_path에서 mode와 X_OK를 검사합니다. 직접 실행 검사는 mount 상태를 읽어 확인한 별도의 실행 가능한 임시 디렉터리에서 **새 fixture 프로젝트와 새 launcher**를 만들고 subprocess로 직접 실행합니다. 기존 noexec 파일을 인터프리터로 실행하거나 mount를 변경하지 않습니다. 적절한 실행 디렉터리가 없으면 테스트를 실패시키며 skip하지 않습니다. Windows 분기에서는 POSIX chmod를 수행하지 않는다는 mock 검증도 추가했습니다. 실제 Windows 실행 검증은 아닙니다.
+
+### 실행 결과
+
+| 검사 | 결과 |
+|---|---|
+| 수정 전 기존 단일 테스트, 일반 /tmp | 1 passed |
+| 수정 전 같은 테스트, /dev/shm basetemp | PermissionError 재현; 실제 mode 0755 및 noexec 확인 |
+| 수정 후 사용자 지정 단일 테스트 | **1 passed**, 0.20초 |
+| 수정 후 /dev/shm에서 분리된 권한/실행/Windows 분기 검사 | **3 passed**, 22 deselected, 0.16초 |
+| 수정 후 로컬 전체 suite | **229 passed, 2 skipped, 0 failed**, 62.54초 |
+
+스킵 2개는 기존 선택적 JADX/Ghidra 실행 도구가 없는 경우입니다. 이번 변경에서 기존 테스트를 삭제하거나 skip 처리하지 않았습니다. 전체 JUnit 기록은 `/tmp/iwant-launcher-final.xml`입니다.
+
+실행한 pytest 명령:
+
+```sh
+/tmp/iwant-program-checks/bin/python -m pytest /workspace/IWANTGOHOME/tests/test_upgrade_offline.py::test_installed_command_works_from_unrelated_directory_without_overwrite -q
+/tmp/iwant-program-checks/bin/python -m pytest /workspace/IWANTGOHOME/tests/test_upgrade_offline.py::test_installed_command_works_from_unrelated_directory_without_overwrite -q --basetemp=/dev/shm/iwant-launcher-noexec-repro-856422dc
+/tmp/iwant-program-checks/bin/python -m pytest /workspace/IWANTGOHOME/tests/test_upgrade_offline.py -q -k 'installed_command or non_posix_permission or docker_test_tmpfs' --tb=short
+/tmp/iwant-program-checks/bin/python -m pytest /workspace/IWANTGOHOME/tests/test_upgrade_offline.py::test_installed_command_works_from_unrelated_directory_without_overwrite -q
+/tmp/iwant-program-checks/bin/python -m pytest /workspace/IWANTGOHOME/tests/test_upgrade_offline.py -q -k 'installed_command or installer_permissions or non_posix_permission' --basetemp=/dev/shm/iwant-launcher-noexec-check-856422dc --tb=short
+/tmp/iwant-program-checks/bin/python -m pytest -q /workspace/IWANTGOHOME/tests --junitxml=/tmp/iwant-launcher-final.xml
+```
+
+중간 회귀 검사는 수정 전 누락을 확인하기 위해 3개 실패를 확인했습니다. 이때 준비했던 Docker exec mount 기대 검사는 사용자의 보안 설정 유지 지시에 따라 적용하지 않았고, 권한/직접 실행을 분리하는 검사로 대체했습니다. Dockerfile/docker-compose와 mount 옵션은 이번 작업에서 변경하지 않았습니다. 사용자의 수정 지시에 따라 Docker 실행은 생략했습니다.
+
+Docker CLI unavailable in this environment; host validation required
+
+Git push와 인증/증거/볼륨 삭제는 수행하지 않았습니다.
+
+## 이전 검증 기록
+
 검증일: **2026-09-15**, Linux arm64, Python 3.14.6. 기준 작업본은 /workspace/something_finder입니다. 이전 ZIP을 사용하지 않았습니다.
 
 ## 테스트

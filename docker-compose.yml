@@ -19,6 +19,12 @@ x-analysis: &analysis
       bind:
         create_host_path: false
     - evidence-v1:/results
+    - type: bind
+      source: ./.operator/programs
+      target: /programs
+      read_only: true
+      bind:
+        create_host_path: false
   networks: [analysis-internal]
   logging:
     driver: none
@@ -126,6 +132,12 @@ services:
       - evidence-v1:/results
       - browser-sessions-v1:/browser-state
       - type: bind
+        source: ./.operator/programs
+        target: /programs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ./.operator/grants
         target: /grants
         read_only: true
@@ -148,6 +160,11 @@ services:
       FINDER_CONFIG: /etc/finder/browser.json
     volumes:
       - browser-sessions-v1:/browser-state
+      - type: bind
+        source: ./.operator/programs
+        target: /programs
+        bind:
+          create_host_path: false
       - type: bind
         source: ./.operator/grants
         target: /grants

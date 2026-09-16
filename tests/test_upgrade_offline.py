@@ -1,10 +1,14 @@
 import asyncio
 import importlib.util
 import json
+import os
+import tempfile
 import plistlib
 from pathlib import Path
 import subprocess
 import sys
+import stat
+from types import SimpleNamespace
 import zipfile
 import pytest
 import yaml
@@ -125,21 +129,94 @@ def test_tmpfs_mount_options_remain_one_string():
             assert all(m.startswith("/tmp:") and "mode=1777" in m for m in svc.get("tmpfs", []))
 
 
-def test_installed_command_works_from_unrelated_directory_without_overwrite(tmp_path):
+def _mount_is_noexec(path):
+    return hasattr(os, "statvfs") and bool(os.statvfs(path).f_flag & getattr(os, "ST_NOEXEC", 0))
+
+
+@pytest.fixture
+def launcher_execution_directory(tmp_path):
+    # This is a separate fixture for direct-exec integration. Do not remount,
+    # interpret a launcher from noexec storage, or hide installer failures.
+    for parent in (tmp_path, Path(tempfile.gettempdir()), Path.home()):
+        if not parent.is_dir() or _mount_is_noexec(parent):
+            continue
+        try:
+            temporary = tempfile.TemporaryDirectory(prefix="finder-launcher-exec-", dir=parent)
+        except OSError:
+            continue
+        with temporary as directory:
+            yield Path(directory)
+        return
+    pytest.fail("Launcher execution requires an executable writable temporary directory; no mount was changed.")
+
+
+def test_installer_permissions_and_repair_without_execution(tmp_path):
+    spec = importlib.util.spec_from_file_location("installer_permissions", ROOT / "scripts/install_command.py")
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    project = tmp_path / "project"; (project / "scripts").mkdir(parents=True)
+    (project / "scripts/finder.sh").write_text("#!/bin/sh\n")
+    config = tmp_path / ".zshrc"
+    command, _ = module.install(tmp_path / "bin", config, project)
+    assert stat.S_IMODE(command.stat().st_mode) == 0o755
+    # X_OK reflects mount policy as well as mode. noexec is not a chmod defect.
+    assert os.access(command, os.X_OK) is (not _mount_is_noexec(command))
+    content, shell_config = command.read_bytes(), config.read_bytes()
+    command.chmod(0o640)
+    module.install(tmp_path / "bin", config, project)
+    assert stat.S_IMODE(command.stat().st_mode) == 0o740
+    assert command.stat().st_mode & stat.S_IXUSR
+    assert command.read_bytes() == content and config.read_bytes() == shell_config
+    assert os.access(command, os.X_OK) is (not _mount_is_noexec(command))
+
+
+def test_installed_command_works_from_unrelated_directory_without_overwrite(launcher_execution_directory):
+    tmp_path = launcher_execution_directory
     spec = importlib.util.spec_from_file_location("installer", ROOT / "scripts/install_command.py")
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     project = tmp_path / "project with spaces"; (project / "scripts").mkdir(parents=True)
     (project / "scripts/finder.sh").write_text('#!/bin/sh\nprintf "%s\\n" "${1:-run}"\n')
     config = tmp_path / ".zshrc";config.write_text("# Existing settings\n")
     command, entry = module.install(tmp_path / "bin", config, project)
+    assert stat.S_IMODE(command.stat().st_mode) == 0o755
     original = config.read_bytes()
+    launcher_content = command.read_bytes()
+    launcher_stat = command.stat()
+    # An identical launcher may have lost execute permission after copying or restoring.
+    command.chmod(0o640)
     module.install(tmp_path / "bin", config, project)
+    assert stat.S_IMODE(command.stat().st_mode) == 0o740
+    assert os.access(command, os.X_OK)
+    assert command.read_bytes() == launcher_content
+    assert command.stat().st_ino == launcher_stat.st_ino
+    assert command.stat().st_mtime_ns == launcher_stat.st_mtime_ns
+    assert config.read_text().splitlines().count(entry) == 1
     assert config.read_bytes() == original and original.startswith(b"# Existing settings\n")
     for action in [None, "build", "login", "status", "doctor", "stop"]:
         proc = subprocess.run([str(command)] + ([action] if action else []), cwd="/tmp", capture_output=True, text=True, check=True)
         assert proc.stdout.strip() == (action or "run")
     command.write_text("existing unrelated command")
+    command.chmod(0o640)
     with pytest.raises(ValueError):module.install(tmp_path / "bin", config, project)
+    assert command.read_text() == "existing unrelated command"
+    assert stat.S_IMODE(command.stat().st_mode) == 0o640
+    assert config.read_bytes() == original
+
+
+def test_installer_preserves_non_posix_permission_behavior(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("installer_non_posix", ROOT / "scripts/install_command.py")
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    project = tmp_path / "project"; (project / "scripts").mkdir(parents=True)
+    (project / "scripts/finder.sh").write_text("#!/bin/sh\n")
+    config = tmp_path / ".zshrc"
+    monkeypatch.setattr(module, "os", SimpleNamespace(name="nt"))
+    def unexpected_chmod(*_args, **_kwargs):
+        raise AssertionError("POSIX executable repair must not change Windows file attributes")
+    monkeypatch.setattr(Path, "chmod", unexpected_chmod)
+    command, entry = module.install(tmp_path / "bin", config, project)
+    before = command.read_bytes(), config.read_bytes()
+    module.install(tmp_path / "bin", config, project)
+    assert (command.read_bytes(), config.read_bytes()) == before
+    assert config.read_text().splitlines().count(entry) == 1
 
 
 def test_new_tools_list_and_call(settings):

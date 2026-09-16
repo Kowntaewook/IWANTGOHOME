@@ -1,6 +1,127 @@
 {
   "analysis": [
     {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "compose_review",
       "description": "Inspect authorized local input with compose_review; return minimized immutable evidence. No target execution or network requests.",
       "inputSchema": {
@@ -1409,6 +1530,45 @@
                 "minItems": 1,
                 "title": "Evidence Ids",
                 "type": "array"
+              },
+              "program_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Program Id"
+              },
+              "asset": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Asset"
+              },
+              "finding_category": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Finding Category"
               }
             },
             "required": [
@@ -1505,6 +1665,127 @@
     }
   ],
   "platform": [
+    {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
     {
       "name": "android_certificate_info",
       "description": "Inspect authorized local input with android_certificate_info; return minimized immutable evidence. No target execution or network requests.",
@@ -2318,6 +2599,127 @@
   ],
   "observer": [
     {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -2677,6 +3079,127 @@
     }
   ],
   "android": [
+    {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
     {
       "name": "android_certificate_info",
       "description": "Inspect authorized local input with android_certificate_info; return minimized immutable evidence. No target execution or network requests.",
@@ -3274,6 +3797,127 @@
   ],
   "android-dynamic": [
     {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -3498,6 +4142,127 @@
     }
   ],
   "binary": [
+    {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
     {
       "name": "binary_exports",
       "description": "Inspect authorized local input with binary_exports; return minimized immutable evidence. No target execution or network requests.",
@@ -4008,6 +4773,127 @@
     }
   ],
   "burp": [
+    {
+      "name": "program_status",
+      "description": "Read approval state and hashes. DRAFT/REVOKED policies grant no network authority.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "program_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "active_program",
+      "description": "Read the human-selected active program; cannot select, approve or modify it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "active_programArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "active_programDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_scope",
+      "description": "Read only the approved canonical active scope. Exact session grants remain necessary.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_scopeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_scopeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scope_check",
+      "description": "Offline active-policy URL/method decision; no DNS or HTTP. This is not a session grant.",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "default": "GET",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "scope_checkArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scope_checkDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "program_rules",
+      "description": "Read approved limits, identities, prohibitions and finding/report classification policy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "program_rulesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
     {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",

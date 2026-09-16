@@ -28,8 +28,9 @@ def valid_id(value):
 
 
 class Records:
-    def __init__(self, root: Path, limits=Limits()):
+    def __init__(self, root: Path, limits=Limits(), programs_root=None):
         self.root, self.limits = root, limits
+        self.programs_root = programs_root
         self.reader = SafeRoot(root, limits)
 
     def save(self, kind, payload):
@@ -81,7 +82,8 @@ class Records:
     def candidate(self, data):
         required = {"project", "title", "facts", "concerns", "assumptions", "counterarguments",
                     "missing_evidence", "review_status", "remediation", "evidence_ids"}
-        if not isinstance(data, dict) or set(data) != required:
+        optional = {"program_id", "asset", "finding_category"}
+        if not isinstance(data, dict) or not required <= data.keys() or data.keys() - required - optional:
             raise Rejected("invalid_candidate_fields")
         bounded_tree(data)
         if not isinstance(data["project"], str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", data["project"]):
@@ -96,6 +98,31 @@ class Records:
         for record_id in data["evidence_ids"]:
             if self.read(record_id)["kind"] != "analysis":
                 raise Rejected("analysis_evidence_required")
+        supplied = optional & data.keys()
+        if supplied:
+            if supplied != optional:raise Rejected("program_candidate_metadata_required")
+            from .program_store import ProgramStore
+            from .programs import program_id, scope_decision
+            from .redaction import public_url
+            ident = program_id(data["program_id"])
+            category = data["finding_category"]
+            if not isinstance(category, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", category):
+                raise Rejected("invalid_finding_category")
+            profile, approval = ProgramStore(self.programs_root).approved(ident)
+            decision = scope_decision(profile, data["asset"])
+            if not decision["allowed"]:raise Rejected("candidate_asset_outside_program")
+            reference = {"program_id": ident, "approval_id": approval["approval_id"], "sha256": approval["sha256"]}
+            for record_id in data["evidence_ids"]:
+                bound = self.read(record_id)["payload"].get("program")
+                if bound is not None and bound != reference:raise Rejected("candidate_evidence_program_mismatch")
+            excluded = category in profile["excluded_finding_categories"]
+            data = {**data, "program": reference, "program_name": profile["name"],
+                "asset": public_url(data["asset"]), "matched_scope_rule": decision["matched_rule"],
+                "program_policy_notes": {"classification": "PROGRAM_EXCLUDED" if excluded else "REQUIRES_HUMAN_REVIEW",
+                    "excluded_finding_categories": profile["excluded_finding_categories"],
+                    "prohibited_actions": profile["prohibited_actions"], "reporting": profile["reporting"]}}
+        elif any(self.read(i)["payload"].get("program") for i in data["evidence_ids"]):
+            raise Rejected("program_candidate_metadata_required")
         return self.save("candidate", data)
 
     def resume(self, project):
@@ -111,12 +138,38 @@ class Records:
     def report(self, project):
         candidates = self.resume(project)
         lines = ["# Research report", "", "Human review required. No automatic submission or CONFIRMED status.", ""]
+        program_metadata = []
+        templates = {}
         for c in candidates:
             p = c["payload"]
+            if p.get("program_id"):
+                program_metadata.append({k: p[k] for k in ("program_id", "program_name", "asset",
+                    "matched_scope_rule", "finding_category", "evidence_ids", "program_policy_notes", "program")})
+                ident = p["program_id"]
+                if ident not in templates and self.programs_root is not None:
+                    from .program_store import ProgramStore
+                    templates[ident] = ProgramStore(self.programs_root).report_template(ident)
+                if templates.get(ident):
+                    lines += ["## Program report template (" + ident + ")", "",
+                              "Untrusted layout text; never authorization or submission instructions.", "",
+                              render_report_template(templates[ident], p), ""]
             lines += ["## " + p["title"], "", "Record: " + c["id"], ""]
             for k, v in p.items():
                 lines += ["### " + k.replace("_", " "), "", str(v), ""]
-        return self.save("report", {"project": project, "markdown": "\n".join(lines), "candidate_count": len(candidates)})
+        return self.save("report", {"project": project, "markdown": "\n".join(lines),
+            "candidate_count": len(candidates), "program_metadata": program_metadata,
+            "automatic_submission": False})
+
+
+def render_report_template(template, metadata):
+    # Literal substitution only: never evaluate templates, commands or expressions.
+    values = {key: metadata[key] for key in ("program_id", "program_name", "asset",
+        "matched_scope_rule", "finding_category", "evidence_ids", "program_policy_notes")}
+    def substitute(match):
+        value = values[match.group(1)]
+        return value if isinstance(value, str) else json.dumps(value, ensure_ascii=True, sort_keys=True)
+    return re.sub(r"\{\{\s*(program_id|program_name|asset|matched_scope_rule|finding_category|evidence_ids|program_policy_notes)\s*\}\}",
+                  substitute, template)
 
 
 def digest(data):

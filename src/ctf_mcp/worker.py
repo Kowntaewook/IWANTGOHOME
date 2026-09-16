@@ -58,7 +58,8 @@ def main():
         obj = json.loads(raw)
         cfg, request = obj["settings"], obj["request"]
         settings = Settings(Path(cfg["input_root"]), Path(cfg["results_root"]), Path(cfg["grants_root"]),
-                            Limits(**cfg["limits"]), Path(cfg["browser_root"]) if cfg.get("browser_root") else None)
+                            Limits(**cfg["limits"]), Path(cfg["browser_root"]) if cfg.get("browser_root") else None,
+                            Path(cfg["programs_root"]) if cfg.get("programs_root") else None)
         cap = settings.limits.output_bytes
         # Persistent Chromium profile databases/caches are distinct from MCP
         # output, which remains capped by the serializer and parent spool reader.
@@ -68,8 +69,20 @@ def main():
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         if request["operation"] == "analyze":
             address_cap = (8 if native else 1) * 1024 * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (address_cap, address_cap))
-            resource.setrlimit(resource.RLIMIT_CPU, (settings.limits.seconds, settings.limits.seconds + 1))
+
+            # RLIMIT_AS behaves differently on Darwin/macOS and can prevent
+            # Python extension modules and parsers from allocating normally.
+            # Keep the address-space limit for the Linux/Docker runtime.
+            if sys.platform != "darwin":
+                resource.setrlimit(
+                    resource.RLIMIT_AS,
+                    (address_cap, address_cap),
+                )
+
+            resource.setrlimit(
+                resource.RLIMIT_CPU,
+                (settings.limits.seconds, settings.limits.seconds + 1),
+            )
             result = analyze(settings, request)
         elif request["operation"] == "observe":
             from .web import worker_observe

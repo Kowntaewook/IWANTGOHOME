@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "program_id": "my-program",
+  "name": "Synthetic Example Program",
+  "policy_source": "https://example.com/policy",
+  "scope": {
+    "in_scope": [
+      {"host": "*.example.com", "schemes": ["https"], "paths": ["/*"]},
+      {"host": "example.com", "schemes": ["https"], "paths": ["/"]}
+    ],
+    "out_of_scope": [
+      {"host": "status.example.com", "paths": ["/*"]},
+      {"host": "*.example.com", "paths": ["/private/*"]}
+    ]
+  },
+  "network_policy": {
+    "allowed_methods": ["GET", "HEAD", "OPTIONS"],
+    "max_requests_per_minute": 20,
+    "max_concurrent_requests": 2,
+    "max_total_requests_per_session": 60,
+    "max_download_bytes": 8388608,
+    "max_response_bytes": 2097152,
+    "max_runtime_seconds": 45
+  },
+  "prohibited_actions": [
+    "automated_scanning", "dos", "ddos", "social_engineering", "physical_attack",
+    "large_scale_data_access", "destructive_testing", "credential_spraying"
+  ],
+  "excluded_finding_categories": ["self-xss", "missing-security-header", "rate-limit-only"],
+  "identities": ["anonymous", "user_a", "user_b"],
+  "allow_private_targets": false,
+  "private_cidrs": [],
+  "reporting": {"submission_url": null, "responsible_disclosure": true}
+}

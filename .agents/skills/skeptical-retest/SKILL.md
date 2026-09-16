@@ -19,6 +19,7 @@ Use only the selected files, IDs and context above. Preserve the user's existing
 
 ## Available tools
 
+- tool: `program_rules`
 - tool: `read_record`
 - tool: `read_source_context`
 - tool: `compare_records`
@@ -30,7 +31,7 @@ Service dependency: analysis. Check the actual running tools/list; an absent ser
 ## Procedure
 
 1. Read actual cited evidence and identify each assumption between observation and claimed impact.
-2. Check variant, role, framework enforcement, reachability, sampling and blocked dependencies.
+2. Read program_rules and retain program_id/asset/finding_category when revising program candidates. PROGRAM_EXCLUDED classifies program eligibility; it never enables new tests. Check variant, role, framework enforcement, reachability, sampling and blocked dependencies.
 3. Explain the strongest plausible safe interpretation and the evidence needed to distinguish it.
 4. Append a revision with an explicit supported state: DISCOVERED, VALIDATING, NEEDS_MORE_EVIDENCE, REJECTED, BLOCKED_SCOPE, DUPLICATE, NOT_SECURITY_RELEVANT or READY_FOR_HUMAN_REVIEW.
 5. Retest means reviewing supplied normal observations or synthetic defensive test results. This skill switch is not an independent agent and does not initiate attack reproduction.

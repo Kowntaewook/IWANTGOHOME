@@ -27,11 +27,27 @@ def session_plan(obj):
     from .web import canonical_url
     required = {"start_url", "allowed_urls", "excluded_urls", "identity_label"}
     optional = set(BUDGET_DEFAULTS) | {"private_cidrs", "allow_private_targets", "credential_origin", "observation_seconds",
-        "allowed_post_requests", "max_requests", "max_bytes", "seconds"}
+        "allowed_post_requests", "max_requests", "max_bytes", "seconds", "program", "allowed_methods"}
     if not isinstance(obj, dict) or not required <= obj.keys() or obj.keys() - required - optional:
         raise Rejected("invalid_session_plan_fields")
     if obj["identity_label"] not in IDENTITIES:raise Rejected("invalid_identity_label")
     plan = {**BUDGET_DEFAULTS, **obj}
+    if "program" in plan:
+        from .programs import SAFE_METHODS, program_id
+        ref = plan["program"]
+        if not isinstance(ref, dict) or set(ref) != {"program_id", "approval_id", "sha256"}:
+            raise Rejected("invalid_program_reference")
+        program_id(ref["program_id"])
+        if not isinstance(ref["approval_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", ref["approval_id"]):
+            raise Rejected("invalid_program_reference")
+        if not isinstance(ref["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", ref["sha256"]):
+            raise Rejected("invalid_program_reference")
+        methods = plan.setdefault("allowed_methods", sorted(SAFE_METHODS))
+        if not isinstance(methods, list) or not methods or any(not isinstance(m, str) or m not in SAFE_METHODS for m in methods):
+            raise Rejected("program_method_blocked")
+        plan["allowed_methods"] = sorted(set(methods))
+    elif "allowed_methods" in plan:
+        raise Rejected("program_reference_required_for_methods")
     for field, maximum in BUDGET_CEILINGS.items():
         if type(plan[field]) is not int or not 1 <= plan[field] <= maximum:raise Rejected("invalid_session_budget")
     if plan["max_response_bytes"] > plan["max_download_bytes"]:raise Rejected("invalid_web_byte_limits")
