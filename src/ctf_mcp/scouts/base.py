@@ -19,7 +19,7 @@ PROPOSAL_STATUSES = {
 }
 SCOUT_TYPES = {
     "auth_tenant", "capability", "parser_boundary", "outbound_http",
-    "hidden_api", "browser_trust",
+    "hidden_api", "browser_trust", "temporal_change",
 }
 
 
@@ -191,6 +191,7 @@ class ScoutContext:
     profile: dict[str, Any]
     program_reference: dict[str, str]
     record: dict[str, Any]
+    previous_records: tuple[dict[str, Any], ...] = ()
 
 
 class BaseScout:

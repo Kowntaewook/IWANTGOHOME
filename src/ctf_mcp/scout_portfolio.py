@@ -13,7 +13,8 @@ from .scouts.base import CandidateProposal
 class ExpectedValueStrategy:
     def score(self, proposal: CandidateProposal, triage: dict) -> float:
         cost = max(float(triage["estimated_cost"]), 0.05)
-        return proposal.estimated_impact * proposal.confidence * proposal.novelty / cost
+        confidence = float(triage.get("calibrated_confidence", proposal.confidence))
+        return proposal.estimated_impact * confidence * proposal.novelty / cost
 
 
 @dataclass(frozen=True)
@@ -87,8 +88,10 @@ class ModelPortfolioSelector:
         stages = {
             "highest_ev": sorted(eligible, key=lambda item: (-self.strategy.score(*item), item[0].proposal_id)),
             "high_impact_low_confidence": sorted(eligible,
-                key=lambda item: (-(item[0].estimated_impact * (1.0 - item[0].confidence)),
-                                  -item[0].estimated_impact, item[0].confidence, item[0].proposal_id)),
+                key=lambda item: (-(item[0].estimated_impact *
+                    (1.0 - float(item[1].get("calibrated_confidence", item[0].confidence)))),
+                    -item[0].estimated_impact,
+                    float(item[1].get("calibrated_confidence", item[0].confidence)), item[0].proposal_id)),
             "novel": sorted(eligible, key=lambda item: (-item[0].novelty, item[0].proposal_id)),
             "exploration": random_order,
         }

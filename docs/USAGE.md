@@ -103,7 +103,7 @@ Android는 FINDER_ADB_ENDPOINT=host.docker.internal:5037 또는 FINDER_FRIDA_END
 
 ## 분석·스킬·증거
 
-고유 MCP 이름은 **103개**, 역할 스킬은 **18개**입니다. [도구/스킬 목록](TOOLS.md)과 실제 SDK에서 생성한 [스키마](tool-schemas.json)를 참고하세요.
+고유 MCP 이름은 **107개**, 역할 스킬은 **18개**입니다. [도구/스킬 목록](TOOLS.md)과 실제 SDK에서 생성한 [스키마](tool-schemas.json)를 참고하세요.
 
 Python AST + ripgrep + 고정 규칙으로 소스를 검토합니다. Semgrep은 연동하지 않았습니다. 새 기록에는 UTC·해시(가능한 경우)·버전·identity·결과 경로·redaction 상태를 추가하며 이전 기록은 재작성하지 않습니다. 후보 상태 8개를 지원하고 자동 CONFIRMED는 거부합니다. 스킬은 역할 지침이며 다중 에이전트 실행기가 아닙니다.
 

@@ -14,17 +14,18 @@ from .records import Records, VERSION, digest
 from .safety import SafeRoot
 
 
+
 def _playwright_browsers_path():
     configured = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
     if configured:
         return configured
 
     home = Path.home()
+
     if sys.platform == "darwin":
         return str(home / "Library" / "Caches" / "ms-playwright")
 
     return str(home / ".cache" / "ms-playwright")
-
 
 def run_worker(settings, request, *, seconds=None, stop=None):
     payload = json.dumps({"settings": asdict(settings), "request": request}, default=str).encode()

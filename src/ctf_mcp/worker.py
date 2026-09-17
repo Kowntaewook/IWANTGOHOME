@@ -69,8 +69,8 @@ def main():
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         if request["operation"] == "analyze":
             address_cap = (8 if native else 1) * 1024 * 1024 * 1024
-            # RLIMIT_AS on Darwin can break Python/native parser allocation.
-            # Keep it enabled for Linux/Docker workers.
+            # RLIMIT_AS behaves differently on Darwin/macOS and can break
+            # Python/native parser allocations. Keep it for Linux/Docker.
             if sys.platform != "darwin":
                 resource.setrlimit(resource.RLIMIT_AS, (address_cap, address_cap))
             resource.setrlimit(resource.RLIMIT_CPU, (settings.limits.seconds, settings.limits.seconds + 1))

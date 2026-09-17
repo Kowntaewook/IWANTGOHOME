@@ -118,7 +118,10 @@ class ScoutPipeline:
         skipped_fresh = skipped_program = malformed = 0
         evaluated = 0
         by_scout = {scout.scout_type: 0 for scout in self.scouts}
-        for record in self._inputs(record_id):
+        inputs = self._inputs(record_id)
+        history_inputs = self._inputs(None) if record_id is not None else inputs
+        previous_inputs: list[dict[str, Any]] = []
+        for record in inputs:
             if time.monotonic() - started >= self.budget.max_runtime_seconds:
                 break
             bound = record.get("payload", {}).get("program")
@@ -127,7 +130,13 @@ class ScoutPipeline:
                     raise Rejected("scout_record_program_mismatch")
                 skipped_program += 1
                 continue
-            context = ScoutContext(profile, reference, record)
+            current_bound = record.get("payload", {}).get("program")
+            candidates = [previous for previous in history_inputs
+                if (previous["created_at"], previous["id"]) < (record["created_at"], record["id"])] \
+                if record_id is not None else previous_inputs
+            compatible_previous = tuple(previous for previous in candidates
+                if previous.get("payload", {}).get("program") == current_bound)
+            context = ScoutContext(profile, reference, record, compatible_previous)
             digest = record_hash(record)
             for scout in self.scouts:
                 if len(created) >= self.budget.max_proposals_per_run or time.monotonic() - started >= self.budget.max_runtime_seconds:
@@ -164,6 +173,7 @@ class ScoutPipeline:
                     "last_evaluated_at": utcnow(), "proposal_count": len(proposals)})
                 self.ledger.record_evaluation(evaluation)
                 evaluated += 1
+            previous_inputs.append(record)
         return {"program_id": profile["program_id"], "proposal_count": len(created),
             "proposal_ids": [proposal.proposal_id for proposal in created], "by_scout": by_scout,
             "records_evaluated": evaluated, "freshness_skips": skipped_fresh,

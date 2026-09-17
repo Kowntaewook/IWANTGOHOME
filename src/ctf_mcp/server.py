@@ -34,6 +34,7 @@ class Candidate(BaseModel):
     program_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     asset: str | None = Field(default=None, max_length=2048)
     finding_category: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,127}$")
+    proposal_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
 
 
 class AnalysisMCP(FastMCP):

@@ -1,5 +1,9 @@
 # 복원본 대비 변경 파일
 
+## Scout 후속 확장
+
+기존 Scout 앞단에 `scout_feedback.py`, `scout_graph.py`, `scout_experiments.py`, `scouts/temporal.py`를 추가했습니다. 기존 candidate의 `proposal_id` 연결을 유지해 결과 피드백을 만들고, minimized evidence graph와 비실행 최소 실험 계획을 불변 record로 저장합니다. CLI에는 feedback/graph/experiment/explain을, MCP에는 대응하는 읽기 전용 조회 4개를 추가했습니다. 기존 승인·scope·session grant·bounded runner는 변경하지 않았습니다.
+
 /tmp/finder-upgrade-baseline의 작업 전 소스 89개와 현재 명시적 배포 파일을 비교했습니다. 사용자 입력/인증/증거/ZIP은 비교 또는 배포 대상으로 읽지 않았습니다. 삭제 목록의 11개 스킬은 요청한 새 역할 이름으로 정리한 것입니다.
 
 수정 32개 · 추가 45개 · 이전 스킬 경로 정리 11개.

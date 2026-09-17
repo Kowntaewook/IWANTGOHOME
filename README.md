@@ -33,6 +33,8 @@ IWANTTOGOHOME program use example
 IWANTTOGOHOME scout run
 IWANTTOGOHOME scout proposals
 IWANTTOGOHOME scout portfolio
+IWANTTOGOHOME scout feedback
+IWANTTOGOHOME scout graph
 ```
 
-Scout는 자동 공격 도구가 아닙니다. 외부 요청을 보내지 않고 승인된 기존 자료에서 `CandidateProposal`을 만들며, 명시적 승격 때도 기존 승인·scope·evidence 검증을 다시 통과한 후보만 `DISCOVERED` candidate로 전달합니다. 자세한 흐름과 보안 경계는 [Scout pipeline](docs/SCOUT_PIPELINE.md)과 [Scout security model](docs/SCOUT_SECURITY_MODEL.md)을 참고하세요.
+Scout는 자동 공격 도구가 아닙니다. 외부 요청을 보내지 않고 승인된 기존 자료와 이전 revision에서 `CandidateProposal`을 만듭니다. 검증 결과 피드백과 evidence graph는 순위 예측만 보정합니다. 최소 실험 계획도 권한이나 실행권을 만들지 않으며, 명시적 승격 때 기존 승인·scope·evidence 검증을 다시 통과한 후보만 `DISCOVERED` candidate로 전달합니다. 자세한 흐름과 보안 경계는 [Scout pipeline](docs/SCOUT_PIPELINE.md)과 [Scout security model](docs/SCOUT_SECURITY_MODEL.md)을 참고하세요.

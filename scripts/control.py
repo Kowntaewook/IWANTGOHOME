@@ -119,9 +119,19 @@ def commands(action, extra, env):
         portfolio.add_argument("--slots", type=int, default=10)
         promote = actions.add_parser("promote")
         promote.add_argument("id")
+        feedback = actions.add_parser("feedback")
+        feedback.add_argument("--program")
+        graph = actions.add_parser("graph")
+        graph.add_argument("--program")
+        graph.add_argument("--proposal")
+        experiment = actions.add_parser("experiment")
+        experiment.add_argument("id")
+        explain = actions.add_parser("explain")
+        explain.add_argument("id")
         actions.add_parser("doctor")
         options = parser.parse_args(extra)
-        for value in (getattr(options, "program", None), getattr(options, "id", None), getattr(options, "record", None)):
+        for value in (getattr(options, "program", None), getattr(options, "id", None),
+                      getattr(options, "record", None), getattr(options, "proposal", None)):
             if value is not None and not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}|[0-9a-f]{32}", value):
                 raise ValueError("invalid scout identifier")
         if not 1 <= getattr(options, "slots", 1) <= 100 or not 1 <= getattr(options, "limit", 1) <= 1000:

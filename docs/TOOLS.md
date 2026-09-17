@@ -1,18 +1,18 @@
 # 도구·스킬·증거 형식
 
-현재 실제 FastMCP registry에서 생성한 [tool-schemas.json](tool-schemas.json)이 입출력 형식의 기준입니다. 고유 이름은 103개이며 공통 도구가 서비스별로 중복됩니다.
+현재 실제 FastMCP registry에서 생성한 [tool-schemas.json](tool-schemas.json)이 입출력 형식의 기준입니다. 고유 이름은 107개이며 공통 도구가 서비스별로 중복됩니다.
 
 | 서비스 | 도구 수 |
 |---|---:|
-| analysis | 63 |
-| platform | 41 |
-| observer | 24 |
-| android | 33 |
-| android-dynamic | 20 |
-| binary | 30 |
-| burp | 19 |
+| analysis | 67 |
+| platform | 45 |
+| observer | 28 |
+| android | 37 |
+| android-dynamic | 24 |
+| binary | 34 |
+| burp | 23 |
 
-모든 역할에는 기존 program policy 읽기 도구와 함께 `scout_status`, `list_scout_proposals`, `read_scout_proposal`, `scout_dedup_status`, `scout_triage_status`, `scout_portfolio_status`가 공통 등록됩니다. Scout MCP는 읽기 전용이며 SQL, 승인, 실행, 승격 입력을 받지 않습니다.
+모든 역할에는 기존 program policy 읽기 도구와 함께 `scout_status`, `list_scout_proposals`, `read_scout_proposal`, `scout_dedup_status`, `scout_triage_status`, `scout_portfolio_status`, `scout_feedback_status`, `scout_evidence_graph`, `scout_experiment_plans`, `scout_explain_proposal`이 공통 등록됩니다. Scout MCP는 읽기 전용이며 SQL, 승인, 실행, 승격 입력을 받지 않습니다.
 
 ## analysis
 
@@ -57,6 +57,8 @@ observe_session은 `grant_id`만 받습니다. research_pause/resume/abort 및 w
 ## 후보
 
 record_candidate의 candidate 필수 필드는 project, title, facts, concerns, assumptions, counterarguments, missing_evidence, review_status, remediation, evidence_ids입니다. 텍스트 필드는 문자열, evidence_ids는 실제 analysis ID 1~20개입니다. skill의 보고 구조는 이 API 입력과 별도입니다.
+
+Scout에서 승격된 candidate를 후속 검토 상태로 기록할 때는 기존 `proposal_id`를 선택 필드로 그대로 전달할 수 있습니다. 이 연결값으로 outcome feedback을 파생하며, feedback은 승인이나 finding confirmation으로 사용되지 않습니다.
 
 상태: DISCOVERED, VALIDATING, NEEDS_MORE_EVIDENCE, REJECTED, BLOCKED_SCOPE, DUPLICATE, NOT_SECURITY_RELEVANT, READY_FOR_HUMAN_REVIEW. 이전 lowercase 상태는 호환을 위해 유지합니다. CONFIRMED는 거부합니다. 수정은 새 record를 추가하며 write_report에는 기존 후보도 포함되므로 중복/대체 관계를 검토하세요.
 

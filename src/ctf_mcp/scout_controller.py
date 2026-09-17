@@ -11,16 +11,19 @@ from .program_store import ProgramStore
 from .programs import scope_decision
 from .records import Records, valid_id
 from .scout_ledger import ScoutLedger
+from .scout_experiments import MinimalExperimentPlanner
+from .scout_feedback import ScoutOutcomeFeedback
+from .scout_graph import EvidenceGraphBuilder
 from .scout_pipeline import (ModelRouting, OfflineAnalysisBudget, ScoutPipeline,
                              proposal_records, scout_events)
 from .scout_portfolio import ModelPortfolioSelector, PortfolioPolicy
 from .scout_triage import CheapTriager, TriagePolicy
-from .scouts.base import CandidateProposal, ExperimentRequest, utcnow
+from .scouts.base import CandidateProposal, utcnow
 
 
 class ScoutPortfolioController:
     def __init__(self, settings, *, budget: OfflineAnalysisBudget = OfflineAnalysisBudget(),
-                 triager=None, selector=None, ledger=None):
+                 triager=None, selector=None, ledger=None, feedback=None, graph=None, planner=None):
         if settings.programs_root is None:
             raise Rejected("program_store_not_configured")
         self.settings = settings
@@ -31,6 +34,9 @@ class ScoutPortfolioController:
         self.selector = selector or ModelPortfolioSelector(PortfolioPolicy.from_env())
         self.ledger = ledger or ScoutLedger(settings.results_root)
         self.ledger.sync(self.records)
+        self.feedback = feedback or ScoutOutcomeFeedback(self.records, self.ledger)
+        self.graph = graph or EvidenceGraphBuilder(self.records, self.ledger)
+        self.planner = planner or MinimalExperimentPlanner()
 
     def _profile(self, ident=None, *, active=False):
         if ident is None:
@@ -55,13 +61,21 @@ class ScoutPortfolioController:
     def run(self, *, program_id=None, record_id=None, force=False, portfolio_slots=10):
         pipeline = ScoutPipeline(self.settings, budget=self.budget, ledger=self.ledger)
         scan = pipeline.run(program_id=program_id, record_id=record_id, force=force)
+        feedback = self.feedback.reconcile(scan["program_id"])
+        graph = self.graph.refresh(scan["program_id"])
         triage = self.triage(program_id=scan["program_id"], proposal_ids=scan["proposal_ids"], force=force)
         portfolio = self.portfolio(program_id=scan["program_id"], slots=portfolio_slots)
-        return {"scan": scan, "triage": triage, "portfolio": portfolio,
+        return {"scan": scan, "feedback": feedback, "graph": {
+                    "record_id": graph["record_id"], "node_count": graph["node_count"],
+                    "edge_count": graph["edge_count"], "freshness_skip": graph["freshness_skip"]},
+            "triage": triage, "portfolio": portfolio,
             "automatic_promotion": False, "network_requests_sent": 0}
 
     def triage(self, *, program_id=None, proposal_ids=None, force=False):
         profile, approval = self._profile(program_id)
+        self.feedback.reconcile(profile["program_id"])
+        all_proposals = [p for p, _ in proposal_records(self.records, profile["program_id"])]
+        self.graph.refresh(profile["program_id"])
         wanted = set(proposal_ids) if proposal_ids is not None else None
         previous = self._latest("scout_triage")
         duplicates = self._latest("scout_dedup")
@@ -72,10 +86,16 @@ class ScoutPortfolioController:
             relation = duplicates.get(proposal.proposal_id, {}).get("payload", {})
             if relation.get("duplicate"):
                 continue
-            if not force and proposal.proposal_id in previous:
+            support = self.graph.support(proposal, all_proposals)
+            calibration = self.feedback.calibration(proposal)
+            old = previous.get(proposal.proposal_id, {}).get("payload", {})
+            unchanged_inputs = (old.get("graph_support") == support and
+                                old.get("outcome_calibration") == calibration)
+            if not force and proposal.proposal_id in previous and unchanged_inputs:
                 results.append(previous[proposal.proposal_id]["payload"])
                 continue
-            result = self.triager.triage(proposal, profile)
+            result = self.triager.triage(proposal, profile,
+                graph_support=support, feedback=calibration)
             current = {"program_id": proposal.program_id, **result, "created_at": utcnow()}
             record = self.records.save("scout_triage", current)
             self.ledger.record_triage(record)
@@ -138,6 +158,24 @@ class ScoutPortfolioController:
         self.ledger.update_state(proposal.proposal_id, status)
         return record
 
+    def plan_experiment(self, proposal_id: str) -> dict[str, Any]:
+        proposal, _ = self._proposal(proposal_id)
+        profile, approval = self._profile(proposal.program_id, active=True)
+        reference = {"program_id": proposal.program_id, "approval_id": approval["approval_id"],
+                     "sha256": approval["sha256"]}
+        if self._latest("scout_dedup").get(proposal_id, {}).get("payload", {}).get("duplicate"):
+            raise Rejected("duplicate_proposal_cannot_plan_experiment")
+        plan = self.planner.plan(proposal, profile, reference)
+        for record in scout_events(self.records, "scout_experiment_plan", proposal.program_id):
+            if record["payload"].get("plan_fingerprint") == plan["plan_fingerprint"]:
+                requests = [{**item, "authorization": False}
+                            for item in record["payload"].get("requests", [])]
+                return {**record["payload"], "requests": requests, "authorization": False,
+                        "record_id": record["id"], "already_planned": True}
+        saved = self.records.save("scout_experiment_plan", plan)
+        self.ledger.record_experiment_plan(saved)
+        return {**plan, "record_id": saved["id"], "already_planned": False}
+
     def promote(self, proposal_id: str) -> dict[str, Any]:
         started = time.monotonic()
         proposal, _ = self._proposal(proposal_id)
@@ -184,15 +222,11 @@ class ScoutPortfolioController:
                 raise Rejected("candidate_evidence_program_mismatch")
             evidence_ids.append(record_id)
         if not evidence_ids:
-            identity = "user_a" if "user_a" in proposal.identity_context and "user_a" in profile["identities"] else profile["identities"][0]
-            request = ExperimentRequest(proposal_id=proposal.proposal_id, program_id=proposal.program_id,
-                identity=identity, method="GET", url=proposal.asset,
-                purpose="Collect the minimum missing observation for independent investigation.",
-                expected_signal=proposal.missing_evidence, estimated_requests=max(1, proposal.estimated_requests)).to_dict()
-            request_record = self.records.save("scout_experiment_request", request)
+            plan = self.plan_experiment(proposal_id)
             self._save_state(proposal, "NEEDS_MORE_EVIDENCE", "analysis_evidence_required")
             return {"proposal_id": proposal_id, "status": "NEEDS_MORE_EVIDENCE",
-                "experiment_request_record_id": request_record["id"], "authorization": False,
+                "experiment_plan_record_id": plan["record_id"], "estimated_requests": plan["estimated_requests"],
+                "authorization": False,
                 "session_grant_required": True}
         candidate = self.records.candidate({"project": proposal.program_id, "title": proposal.title,
             "facts": proposal.observed_fact, "concerns": proposal.why_may_matter,
@@ -218,6 +252,9 @@ class ScoutPortfolioController:
             row["final_status"] for row in rows).items())),
             "portfolio_runs": len(self.ledger.rows("portfolio_runs")),
             "promotions": len(self.ledger.rows("promotions")),
+            "outcomes": len(self.ledger.rows("outcomes")),
+            "graph_snapshots": len(self.ledger.rows("graph_snapshots")),
+            "experiment_plans": len(self.ledger.rows("experiment_plans")),
             "ledger_is_evidence_source": False, "immutable_records_are_authoritative": True,
             "ledger_recovered_from_corruption": self.ledger.recovered_corruption,
             "network_requests_sent": 0}
@@ -240,7 +277,10 @@ class ScoutPortfolioController:
         return {"record_id": record["id"], "proposal": proposal.to_dict(),
             "dedup": [r["payload"] for r in scout_events(self.records, "scout_dedup") if r["payload"]["proposal_id"] == proposal_id],
             "triage": [r["payload"] for r in scout_events(self.records, "scout_triage") if r["payload"]["proposal_id"] == proposal_id],
-            "promotion": [r["payload"] for r in scout_events(self.records, "scout_promotion") if r["payload"]["proposal_id"] == proposal_id]}
+            "promotion": [r["payload"] for r in scout_events(self.records, "scout_promotion") if r["payload"]["proposal_id"] == proposal_id],
+            "outcomes": [r["payload"] for r in scout_events(self.records, "scout_outcome") if r["payload"]["proposal_id"] == proposal_id],
+            "experiment_plans": [r["payload"] for r in scout_events(self.records, "scout_experiment_plan") if r["payload"]["proposal_id"] == proposal_id],
+            "evidence_graph": self.graph.neighborhood(proposal_id)}
 
     def dedup_status(self):
         rows = self.ledger.rows("dedup_relations")
@@ -252,6 +292,71 @@ class ScoutPortfolioController:
 
     def portfolio_status(self):
         return {"runs": self.ledger.rows("portfolio_runs"), "members": self.ledger.rows("portfolio_members")}
+
+    def feedback_status(self, program_id=None):
+        return self.feedback.status(program_id)
+
+    def reconcile_feedback(self, program_id=None):
+        profile, _ = self._profile(program_id)
+        result = self.feedback.reconcile(profile["program_id"])
+        return {**result, "status": self.feedback.status(profile["program_id"])}
+
+    def graph_status(self, program_id=None, proposal_id=None):
+        if proposal_id is not None:
+            valid_id(proposal_id)
+            return self.graph.neighborhood(proposal_id)
+        values = [r for r in scout_events(self.records, "scout_graph", program_id)]
+        return {"snapshots": [{"record_id": r["id"], **{k: r["payload"][k] for k in
+            ("program_id", "graph_version", "source_hash", "node_count", "edge_count", "created_at")}}
+            for r in values[-100:]], "contains_raw_source_payloads": False}
+
+    def experiment_status(self, proposal_id=None):
+        if proposal_id is not None:
+            valid_id(proposal_id)
+        values = [r for r in scout_events(self.records, "scout_experiment_plan")
+                  if proposal_id is None or r["payload"].get("proposal_id") == proposal_id]
+        return {"plans": [{"record_id": r["id"], **r["payload"],
+                            "requests": [{**item, "authorization": False}
+                                         for item in r["payload"].get("requests", [])],
+                            "authorization": False}
+                          for r in values[-100:]],
+                "authorization": False, "network_requests_sent": 0}
+
+    def explain(self, proposal_id: str):
+        proposal, _ = self._proposal(proposal_id)
+        exact_approval = scope_valid = category_allowed = False
+        scope_reason = approval_reason = None
+        reference = None
+        try:
+            profile, approval = self._profile(proposal.program_id, active=True)
+            reference = {"program_id": proposal.program_id, "approval_id": approval["approval_id"],
+                         "sha256": approval["sha256"]}
+            exact_approval = proposal.program == reference
+            decision = scope_decision(profile, proposal.asset, "GET")
+            scope_valid, scope_reason = decision["allowed"], decision.get("reason")
+            category_allowed = proposal.finding_category not in profile["excluded_finding_categories"]
+        except Rejected as exc:
+            approval_reason = str(exc)
+        dedup = self._latest("scout_dedup").get(proposal_id, {}).get("payload", {})
+        triage = self._latest("scout_triage").get(proposal_id, {}).get("payload", {})
+        evidence_count = 0
+        for record_id in dict.fromkeys(proposal.observation_ids + proposal.source_record_ids):
+            try:
+                record = self.records.read(record_id)
+                bound = record.get("payload", {}).get("program")
+                evidence_count += record["kind"] == "analysis" and reference is not None and \
+                    (bound is None or bound == reference)
+            except Rejected: pass
+        gates = {"active_exact_approval": exact_approval, "scope_valid": scope_valid,
+            "category_allowed": category_allowed, "not_duplicate": not dedup.get("duplicate", False),
+            "triage_eligible": triage.get("decision") == "ELIGIBLE",
+            "portfolio_selected": self._selected(proposal_id), "analysis_evidence_present": evidence_count > 0}
+        return {"proposal_id": proposal_id, "why_created": proposal.observed_fact,
+            "why_it_may_matter": proposal.why_may_matter, "missing_evidence": proposal.missing_evidence,
+            "gates": gates, "promotion_ready": all(gates.values()),
+            "approval_reason": approval_reason, "scope_reason": scope_reason,
+            "triage_decision": triage.get("decision"), "dedup_reason": dedup.get("reason"),
+            "model_output_is_authorization": False}
 
     def doctor(self):
         profile = None
@@ -265,4 +370,6 @@ class ScoutPortfolioController:
             "ledger_path": str(self.ledger.path), "ledger_is_evidence_source": False,
             "immutable_event_rebuild": True, "network_capability_in_scouts": False,
             "model_routing": ModelRouting.from_env(), "deterministic_fallback": True,
-            "offline_budget": self.budget.__dict__}
+            "offline_budget": self.budget.__dict__, "outcome_feedback_version": self.feedback.version,
+            "evidence_graph_version": self.graph.version,
+            "experiment_planner_version": self.planner.version}

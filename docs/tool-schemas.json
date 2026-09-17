@@ -262,6 +262,141 @@
       }
     },
     {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "compose_review",
       "description": "Inspect authorized local input with compose_review; return minimized immutable evidence. No target execution or network requests.",
       "inputSchema": {
@@ -1709,6 +1844,19 @@
                 ],
                 "default": null,
                 "title": "Finding Category"
+              },
+              "proposal_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{32}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Proposal Id"
               }
             },
             "required": [
@@ -2058,6 +2206,141 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -3140,6 +3423,141 @@
       }
     },
     {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -3752,6 +4170,141 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -4618,6 +5171,141 @@
       }
     },
     {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -5095,6 +5783,141 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -5866,6 +6689,141 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_feedback_status",
+      "description": "Read candidate-outcome calibration records; feedback cannot grant authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          }
+        },
+        "title": "scout_feedback_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_feedback_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_evidence_graph",
+      "description": "Read minimized graph snapshots or one proposal neighborhood; source payloads are omitted.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_evidence_graphArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_evidence_graphDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_experiment_plans",
+      "description": "Read non-authorizing bounded experiment plans; this tool never creates or executes one.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposal Id"
+          }
+        },
+        "title": "scout_experiment_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_experiment_plansDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_explain_proposal",
+      "description": "Explain immutable promotion gates without changing state or authorizing execution.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "scout_explain_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_explain_proposalDictOutput",
         "type": "object"
       },
       "annotations": {

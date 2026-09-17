@@ -7,7 +7,7 @@ The flow is:
 ```text
 approved Program Profile
   -> fresh immutable records
-  -> six offline Scouts
+  -> six domain Scouts + one temporal change Scout
   -> CandidateProposal records
   -> structural-first semantic dedup
   -> deterministic cheap triage
@@ -33,6 +33,18 @@ max promoted candidates per portfolio: 10
 
 The current deterministic core makes zero model calls. Optional model review can reorder an already selected, minimized portfolio but cannot authorize, execute, confirm, or promote anything.
 
+## Outcome feedback and evidence graph
+
+`scout feedback` derives resolved outcomes only from existing candidate records linked by `proposal_id`. Follow-up `record_candidate` calls can preserve this optional ID while writing a new immutable lifecycle record. `READY_FOR_HUMAN_REVIEW` is treated as a positive review outcome; it is not renamed or elevated to `CONFIRMED`. Rejected and non-security-relevant outcomes provide negative ranking feedback. A minimum of three other resolved proposals from the same program and Scout type is required before calibration activates. Bayesian-smoothed precision can adjust predicted confidence by 0.75–1.25 and observed investigation time can adjust predicted cost by 0.5–2.0. These values affect triage and portfolio ranking only.
+
+`scout graph` records a bounded, minimized graph of proposals, assets, categories, invariants, identities, resources, and immutable record IDs. It never copies source payloads. Cross-record and cross-analyzer support can add at most 0.10 to evidence completeness. Each snapshot states its node/edge limits and whether coverage was truncated.
+
+The temporal change Scout compares same-program, same-analyzer immutable revisions. It proposes only security-relevant structural changes such as weakened authorization metadata or a newly exposed privileged field. It does not treat an added route by itself as a finding and sends no request.
+
+## Minimal experiment plans
+
+`scout experiment <proposal-id>` creates a maximum of three safe-method `ExperimentRequest` entries. The planner first rechecks the active exact program revision, category policy, method, scope, identities, and program request budget. A plan contains `authorization: false`, `executable: false`, and `network_requests_sent: 0`. Execution still requires the existing human-reviewed session plan/grant and bounded runner.
+
 ## Commands
 
 ```bash
@@ -45,6 +57,11 @@ IWANTTOGOHOME scout proposals
 IWANTTOGOHOME scout proposal 0123456789abcdef0123456789abcdef
 IWANTTOGOHOME scout triage
 IWANTTOGOHOME scout portfolio
+IWANTTOGOHOME scout feedback
+IWANTTOGOHOME scout graph
+IWANTTOGOHOME scout graph --proposal 0123456789abcdef0123456789abcdef
+IWANTTOGOHOME scout experiment 0123456789abcdef0123456789abcdef
+IWANTTOGOHOME scout explain 0123456789abcdef0123456789abcdef
 IWANTTOGOHOME scout promote 0123456789abcdef0123456789abcdef
 IWANTTOGOHOME scout doctor
 ```
@@ -66,7 +83,7 @@ Cheap triage considers policy scope, excluded categories, evidence completeness,
 The separate expected-value strategy is:
 
 ```text
-estimated impact * confidence * novelty / max(estimated investigation cost, 0.05)
+estimated impact * calibrated confidence * novelty / max(estimated investigation cost, 0.05)
 ```
 
 The default portfolio allocates 60% to highest expected value, 20% to high-impact/low-confidence hypotheses, 10% to novel categories, and 10% to seeded exploration. `FINDER_SCOUT_HIGHEST_EV_RATIO`, `FINDER_SCOUT_HIGH_IMPACT_LOW_CONFIDENCE_RATIO`, `FINDER_SCOUT_NOVEL_RATIO`, and `FINDER_SCOUT_EXPLORATION_RATIO` configure ratios and must total 1. Diversity and program caps use `FINDER_SCOUT_MAX_PER_ASSET_CATEGORY` and `FINDER_SCOUT_PER_PROGRAM_CAP`; `FINDER_SCOUT_SEED` makes exploration repeatable.

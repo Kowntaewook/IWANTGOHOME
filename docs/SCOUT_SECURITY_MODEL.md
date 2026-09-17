@@ -20,7 +20,11 @@ A selected proposal is promoted only after all of these checks pass again:
 
 The resulting candidate starts at `DISCOVERED`. No Scout path can write `CONFIRMED` or bypass candidate validation.
 
-If evidence is insufficient, promotion writes an `ExperimentRequest` and `NEEDS_MORE_EVIDENCE` state. The request contains `authorization: false` and is never executed by Scout. A future observation must independently perform, in order, active approval verification, offline scope and method checks, program budget checks, exact session plan/grant verification, and execution through the existing bounded runner.
+If evidence is insufficient, promotion writes a bounded experiment plan and `NEEDS_MORE_EVIDENCE` state. Its `ExperimentRequest` entries contain `authorization: false`; the plan is non-executable and is never run by Scout. A future observation must independently perform, in order, active approval verification, offline scope and method checks, program budget checks, exact session plan/grant verification, and execution through the existing bounded runner.
+
+Outcome feedback cannot create a positive result. It only observes existing candidate lifecycle records, requires a minimum sample, and adjusts ranking estimates within fixed bounds. `READY_FOR_HUMAN_REVIEW` remains a human-review state and never becomes `CONFIRMED`. Evidence graph support likewise changes evidence-completeness prediction only. Neither input is consulted as an approval, scope, grant, or evidence source of truth.
+
+Temporal comparison stays within immutable records bound to the same Program Profile revision. It compares structure only, emits a hypothesis with both source record IDs, and requires independent runtime evidence before promotion or review readiness.
 
 ## Secret handling and discovery quality
 
@@ -30,8 +34,8 @@ Every proposal states a security invariant, observed fact, possible relevance, a
 
 ## Ledger and recovery
 
-`.scout-ledger.sqlite3` lives beside immutable result records and contains indexes and telemetry only. Tables cover proposals, dedup relations, triage results, portfolio runs/members, promotions, model usage, and input evaluations. SQL statements and table choices are fixed in code; MCP accepts no SQL.
+`.scout-ledger.sqlite3` lives beside immutable result records and contains indexes and telemetry only. Tables cover proposals, dedup relations, triage results, portfolio runs/members, promotions, model usage, input evaluations, outcomes, graph snapshots, and experiment plans. SQL statements and table choices are fixed in code; MCP accepts no SQL.
 
 Every material lifecycle transition also has an immutable JSON record. On restart, the ledger synchronizes from those records. If SQLite fails its integrity check, IWANTGOHOME preserves the corrupt file under a unique `.corrupt-*` name, creates a new index, and rebuilds it. Existing evidence, approvals, browser sessions, Codex state, research records, and reports are never migrated, rewritten, or deleted.
 
-The read-only MCP surface is limited to status, proposal listing/reading, and dedup/triage/portfolio status. It has no approval, execution, promotion, SQL, or shell tool.
+The read-only MCP surface is limited to status, proposal listing/reading, dedup/triage/portfolio/feedback status, minimized graph views, experiment-plan views, and gate explanations. It has no approval, execution, promotion, SQL, or shell tool.

@@ -6,6 +6,7 @@ from .capability import CapabilityScout
 from .hidden_api import HiddenAPIScout
 from .outbound import OutboundHTTPScout
 from .parser_boundary import ParserBoundaryScout
+from .temporal import TemporalChangeScout
 
 
 SCOUTS = (
@@ -15,6 +16,7 @@ SCOUTS = (
     OutboundHTTPScout,
     HiddenAPIScout,
     BrowserTrustScout,
+    TemporalChangeScout,
 )
 
 __all__ = ["SCOUTS", *(scout.__name__ for scout in SCOUTS)]

@@ -56,6 +56,23 @@ CREATE TABLE IF NOT EXISTS input_evaluations (
     scout_type TEXT NOT NULL, scout_version TEXT NOT NULL, last_evaluated_at TEXT NOT NULL,
     PRIMARY KEY (input_record_hash, scout_type, scout_version)
 );
+CREATE TABLE IF NOT EXISTS outcomes (
+    outcome_record_id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL,
+    candidate_record_id TEXT NOT NULL UNIQUE, program_id TEXT NOT NULL,
+    scout_type TEXT NOT NULL, finding_category TEXT NOT NULL, outcome TEXT NOT NULL,
+    investigation_seconds INTEGER NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS graph_snapshots (
+    graph_record_id TEXT PRIMARY KEY, program_id TEXT NOT NULL, graph_version TEXT NOT NULL,
+    source_hash TEXT NOT NULL, node_count INTEGER NOT NULL, edge_count INTEGER NOT NULL,
+    created_at TEXT NOT NULL, UNIQUE(program_id, graph_version, source_hash)
+);
+CREATE TABLE IF NOT EXISTS experiment_plans (
+    plan_record_id TEXT PRIMARY KEY, plan_id TEXT NOT NULL UNIQUE, proposal_id TEXT NOT NULL,
+    program_id TEXT NOT NULL, planner_version TEXT NOT NULL, plan_fingerprint TEXT NOT NULL,
+    estimated_requests INTEGER NOT NULL, authorization INTEGER NOT NULL,
+    created_at TEXT NOT NULL, UNIQUE(proposal_id, planner_version, plan_fingerprint)
+);
 """
 
 
@@ -198,6 +215,33 @@ class ScoutLedger:
             connection.execute("UPDATE proposals SET final_status='PROMOTED' WHERE proposal_id=?",
                 (p["proposal_id"],))
 
+    def record_outcome(self, record: dict):
+        p = record["payload"]
+        with self.transaction() as connection:
+            connection.execute("""INSERT OR IGNORE INTO outcomes VALUES (?,?,?,?,?,?,?,?,?)""",
+                (record["id"], p["proposal_id"], p["candidate_record_id"], p["program_id"],
+                 p["scout_type"], p["finding_category"], p["outcome"],
+                 p["investigation_seconds"], record["created_at"]))
+
+    def record_graph(self, record: dict):
+        p = record["payload"]
+        with self.transaction() as connection:
+            connection.execute("""INSERT OR IGNORE INTO graph_snapshots VALUES (?,?,?,?,?,?,?)""",
+                (record["id"], p["program_id"], p["graph_version"], p["source_hash"],
+                 p["node_count"], p["edge_count"], record["created_at"]))
+
+    def record_experiment_plan(self, record: dict):
+        p = record["payload"]
+        # The shared immutable-record redactor masks exact authorization-shaped keys.
+        # Both accepted values represent the planner's schema-validated constant false.
+        if p.get("authorization") not in {False, "[REDACTED]"}:
+            raise Rejected("experiment_plan_cannot_authorize")
+        with self.transaction() as connection:
+            connection.execute("""INSERT OR IGNORE INTO experiment_plans VALUES (?,?,?,?,?,?,?,?,?)""",
+                (record["id"], p["plan_id"], p["proposal_id"], p["program_id"],
+                 p["planner_version"], p["plan_fingerprint"], p["estimated_requests"],
+                 0, record["created_at"]))
+
     def update_state(self, proposal_id: str, status: str):
         with self.transaction() as connection:
             connection.execute("UPDATE proposals SET final_status=? WHERE proposal_id=?", (status, proposal_id))
@@ -218,15 +262,20 @@ class ScoutLedger:
             elif kind == "scout_promotion": self.record_promotion(record)
             elif kind == "scout_state": self.update_state(record["payload"]["proposal_id"], record["payload"]["status"])
             elif kind == "scout_evaluation": self.record_evaluation(record)
+            elif kind == "scout_outcome": self.record_outcome(record)
+            elif kind == "scout_graph": self.record_graph(record)
+            elif kind == "scout_experiment_plan": self.record_experiment_plan(record)
 
     def rows(self, table: str, *, proposal_id: str | None = None, limit: int = 1000) -> list[dict]:
         allowed = {"proposals", "dedup_relations", "triage_results", "portfolio_runs",
-                   "portfolio_members", "promotions", "model_usage", "input_evaluations"}
+                   "portfolio_members", "promotions", "model_usage", "input_evaluations",
+                   "outcomes", "graph_snapshots", "experiment_plans"}
         if table not in allowed or type(limit) is not int or not 1 <= limit <= 1000:
             raise Rejected("invalid_scout_ledger_query")
         filters = {
             "proposals": "proposal_id", "dedup_relations": "proposal_id", "triage_results": "proposal_id",
             "portfolio_members": "proposal_id", "promotions": "proposal_id", "model_usage": "proposal_id",
+            "outcomes": "proposal_id", "experiment_plans": "proposal_id",
         }
         query = "SELECT * FROM " + table
         params: tuple = ()

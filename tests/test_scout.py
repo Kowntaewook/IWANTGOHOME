@@ -16,13 +16,15 @@ from ctf_mcp.programs import validate_profile
 from ctf_mcp.records import Records
 from ctf_mcp.scout_controller import ScoutPortfolioController
 from ctf_mcp.scout_dedup import SemanticDeduplicator
+from ctf_mcp.scout_feedback import FeedbackPolicy, ScoutOutcomeFeedback
+from ctf_mcp.scout_graph import EvidenceGraphBuilder
 from ctf_mcp.scout_ledger import ScoutLedger
 from ctf_mcp.scout_pipeline import OfflineAnalysisBudget, ScoutPipeline
 from ctf_mcp.scout_portfolio import ModelPortfolioSelector, PortfolioPolicy
 from ctf_mcp.scout_triage import CheapTriager
 from ctf_mcp.scouts import SCOUTS
 from ctf_mcp.scouts.base import CandidateProposal, ExperimentRequest, ScoutContext
-from ctf_mcp.server import create_server
+from ctf_mcp.server import Candidate, create_server
 from test_programs import approve_program, example, program_settings
 
 
@@ -44,6 +46,12 @@ def record(kind, payload):
 
 def contexts():
     p, ref = profile(), reference()
+    temporal_old = record("analysis", {"analyzer": "openapi", "result": {"observations": [{
+        "path": "https://api.example.com/admin/users", "method": "GET",
+        "security_declaration": "required"}]}})
+    temporal_new = record("analysis", {"analyzer": "openapi", "result": {"observations": [{
+        "path": "https://api.example.com/admin/users", "method": "GET",
+        "security_declaration": "optional_or_none"}]}})
     values = {
         "auth_tenant": record("session_comparison", {"FACTS": {"user_a_evidence": "1" * 32,
             "user_b_evidence": "2" * 32}, "DIFFERENCES": [{"user_a": {
@@ -61,7 +69,9 @@ def contexts():
         "browser_trust": record("analysis", {"analyzer": "source_context", "asset": "https://api.example.com/account",
             "result": {"lines": [{"snippet": "const role = localStorage.getItem('role')"}]}}),
     }
-    return {name: ScoutContext(p, ref, value) for name, value in values.items()}
+    result = {name: ScoutContext(p, ref, value) for name, value in values.items()}
+    result["temporal_change"] = ScoutContext(p, ref, temporal_new, (temporal_old,))
+    return result
 
 
 def proposal(**changes):
@@ -279,7 +289,9 @@ def test_scout_mcp_is_readonly_and_has_no_sql_surface(program_settings):
         server = create_server(program_settings)
         tools = {tool.name: tool for tool in await server.list_tools()}
         names = {"scout_status", "list_scout_proposals", "read_scout_proposal",
-                 "scout_dedup_status", "scout_triage_status", "scout_portfolio_status"}
+                 "scout_dedup_status", "scout_triage_status", "scout_portfolio_status",
+                 "scout_feedback_status", "scout_evidence_graph", "scout_experiment_plans",
+                 "scout_explain_proposal"}
         assert names <= tools.keys()
         for name in names:
             assert tools[name].annotations.readOnlyHint and not tools[name].annotations.openWorldHint
@@ -309,14 +321,17 @@ def test_scout_cli_commands_and_unrelated_cwd(program_settings, tmp_path):
     run = cli("run", "--record", evidence["id"])
     proposal_id = run["scan"]["proposal_ids"][0]
     assert cli("proposal", proposal_id)["proposal"]["proposal_id"] == proposal_id
+    assert cli("explain", proposal_id)["proposal_id"] == proposal_id
+    assert cli("experiment", proposal_id)["authorization"] is False
     assert cli("promote", proposal_id)["candidate_status"] == "DISCOVERED"
-    for action in ("status", "proposals", "triage", "portfolio", "doctor"):
+    for action in ("status", "proposals", "triage", "portfolio", "feedback", "graph", "doctor"):
         cli(action)
     assert (program_settings.results_root / (evidence["id"] + ".json")).read_bytes() == original
     help_result = subprocess.run([sys.executable, "-m", "ctf_mcp.cli", "scout", "--help"], cwd=tmp_path,
         env=env, text=True, capture_output=True, timeout=20)
     assert all(action in help_result.stdout for action in
-               ("run", "status", "proposals", "proposal", "triage", "portfolio", "promote", "doctor"))
+               ("run", "status", "proposals", "proposal", "triage", "portfolio", "promote",
+                "feedback", "graph", "experiment", "explain", "doctor"))
 
 
 def test_host_launcher_routes_scout_without_paths_or_shell(tmp_path):
@@ -329,3 +344,100 @@ def test_host_launcher_routes_scout_without_paths_or_shell(tmp_path):
     assert "sh" not in command and "bash" not in command
     with pytest.raises(ValueError):
         control.commands("scout", ["proposal", "../escape"], {})
+
+
+def test_temporal_scout_compares_same_analyzer_revisions_without_execution(program_settings):
+    store, _, ref = active_program(program_settings)
+    records = Records(program_settings.results_root, programs_root=store.root)
+    records.save("analysis", {"analyzer": "openapi", "program": ref, "result": {"observations": [{
+        "path": "https://api.example.com/admin/users", "method": "GET",
+        "security_declaration": "required"}]}})
+    records.save("analysis", {"analyzer": "openapi", "program": ref, "result": {"observations": [{
+        "path": "https://api.example.com/admin/users", "method": "GET",
+        "security_declaration": "optional_or_none"}]}})
+    result = ScoutPipeline(program_settings).run()
+    proposals = [p for p in ScoutPortfolioController(program_settings).proposals()["proposals"]
+                 if p["scout_type"] == "temporal_change"]
+    assert proposals and result["network_requests_sent"] == 0
+    assert len(proposals[0]["source_record_ids"]) == 2
+
+
+def test_outcome_feedback_calibrates_only_ranking_after_resolved_candidates(program_settings):
+    store, _, ref = active_program(program_settings)
+    records = Records(program_settings.results_root, programs_root=store.root)
+    evidence = records.save("analysis", {"analyzer": "openapi", "program": ref,
+        "result": {"observations": []}})
+    proposals = []
+    for index in range(4):
+        p = proposal(proposal_id=f"{index + 1:032x}", program=ref,
+                     source_record_ids=[evidence["id"]], observation_ids=[])
+        records.save("scout_proposal", p.to_dict())
+        proposals.append(p)
+        if index < 3:
+            records.candidate({"project": "example", "title": "Reviewed hypothesis",
+                "facts": "Synthetic fact", "concerns": "Synthetic concern",
+                "assumptions": "None", "counterarguments": "Could be intended",
+                "missing_evidence": "None", "review_status": "READY_FOR_HUMAN_REVIEW",
+                "remediation": "Review", "evidence_ids": [evidence["id"]],
+                "program_id": "example", "asset": p.asset,
+                "finding_category": p.finding_category, "proposal_id": p.proposal_id})
+    ledger = ScoutLedger(program_settings.results_root)
+    feedback = ScoutOutcomeFeedback(records, ledger, FeedbackPolicy(minimum_samples=3))
+    first = feedback.reconcile("example")
+    second = feedback.reconcile("example")
+    calibration = feedback.calibration(proposals[-1])
+    assert first["outcomes_recorded"] == 3 and second["outcomes_recorded"] == 0
+    assert calibration["active"] and calibration["confidence_factor"] > 1
+    assert calibration["authorization_effect"] is False
+
+
+def test_evidence_graph_correlates_records_without_copying_payloads(program_settings):
+    store, _, ref = active_program(program_settings)
+    records = Records(program_settings.results_root, programs_root=store.root)
+    one = records.save("analysis", {"analyzer": "openapi", "program": ref,
+        "result": {"secret": "SYNTHETIC GRAPH SECRET"}})
+    two = records.save("analysis", {"analyzer": "source_map", "program": ref,
+        "result": {"secret": "ANOTHER SYNTHETIC SECRET"}})
+    p1 = proposal(proposal_id="1" * 32, program=ref, source_record_ids=[one["id"]], observation_ids=[])
+    p2 = proposal(proposal_id="2" * 32, program=ref, source_record_ids=[two["id"]], observation_ids=[])
+    records.save("scout_proposal", p1.to_dict()); records.save("scout_proposal", p2.to_dict())
+    ledger = ScoutLedger(program_settings.results_root)
+    graph = EvidenceGraphBuilder(records, ledger)
+    snapshot = graph.refresh("example")
+    support = graph.support(p1, [p1, p2])
+    assert support["cross_artifact"] and support["corroborating_proposal_count"] == 1
+    assert "SYNTHETIC GRAPH SECRET" not in json.dumps(snapshot)
+    assert graph.refresh("example")["freshness_skip"]
+    wrong = records.save("analysis", {"analyzer": "openapi", "program": reference("second"),
+        "result": {"observations": []}})
+    mismatched = proposal(proposal_id="4" * 32, program=ref,
+                          source_record_ids=[wrong["id"]], observation_ids=[])
+    isolated = graph.support(mismatched, [mismatched])
+    assert isolated["independent_record_count"] == 0
+    assert isolated["program_mismatch_or_missing_count"] == 1
+
+
+def test_minimal_experiment_plan_is_bounded_non_authorizing_and_idempotent(program_settings):
+    store, _, ref = active_program(program_settings)
+    records = Records(program_settings.results_root, programs_root=store.root)
+    p = proposal(proposal_id="3" * 32, program=ref, scout_type="auth_tenant",
+        identity_context="user_a_vs_user_b", estimated_requests=2,
+        observation_ids=[], source_record_ids=[])
+    records.save("scout_proposal", p.to_dict())
+    controller = ScoutPortfolioController(program_settings)
+    first = controller.plan_experiment(p.proposal_id)
+    second = controller.plan_experiment(p.proposal_id)
+    assert first["estimated_requests"] == 2 and second["already_planned"]
+    assert first["record_id"] == second["record_id"]
+    assert first["authorization"] is False and not first["executable"]
+    assert first["network_requests_sent"] == 0
+    assert all(request["authorization"] is False for request in first["requests"])
+    assert controller.explain(p.proposal_id)["model_output_is_authorization"] is False
+
+
+def test_candidate_api_can_preserve_scout_proposal_link():
+    value = Candidate(project="example", title="Review", facts="Observed", concerns="Concern",
+        assumptions="Assumption", counterarguments="Counterargument", missing_evidence="Gap",
+        review_status="VALIDATING", remediation="Review", evidence_ids=["1" * 32],
+        proposal_id="2" * 32)
+    assert value.model_dump(exclude_none=True)["proposal_id"] == "2" * 32
