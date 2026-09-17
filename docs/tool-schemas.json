@@ -122,6 +122,146 @@
       }
     },
     {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "compose_review",
       "description": "Inspect authorized local input with compose_review; return minimized immutable evidence. No target execution or network requests.",
       "inputSchema": {
@@ -1787,6 +1927,146 @@
       }
     },
     {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "android_certificate_info",
       "description": "Inspect authorized local input with android_certificate_info; return minimized immutable evidence. No target execution or network requests.",
       "inputSchema": {
@@ -2720,6 +3000,146 @@
       }
     },
     {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -3192,6 +3612,146 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -3918,6 +4478,146 @@
       }
     },
     {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "health",
       "description": "Return server role and installed analyzer versions, without credentials or paths.",
       "inputSchema": {
@@ -4255,6 +4955,146 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -4886,6 +5726,146 @@
       "outputSchema": {
         "additionalProperties": true,
         "title": "program_rulesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_status",
+      "description": "Read Scout counts and lifecycle states. SQLite is a rebuildable index only.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_scout_proposals",
+      "description": "List sanitized immutable proposal records; proposals are not findings or authorization.",
+      "inputSchema": {
+        "properties": {
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Program Id"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "list_scout_proposalsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "list_scout_proposalsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_scout_proposal",
+      "description": "Read one proposal and its immutable dedup, triage, and promotion relations.",
+      "inputSchema": {
+        "properties": {
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "read_scout_proposalArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_scout_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_dedup_status",
+      "description": "Read recorded structural-first dedup relations; accepts no SQL.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_dedup_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_dedup_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_triage_status",
+      "description": "Read deterministic triage telemetry; scores are estimates, not severity.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_triage_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_triage_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "scout_portfolio_status",
+      "description": "Read portfolio runs and selected members; selection does not promote a candidate.",
+      "inputSchema": {
+        "properties": {},
+        "title": "scout_portfolio_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "scout_portfolio_statusDictOutput",
         "type": "object"
       },
       "annotations": {

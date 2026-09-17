@@ -1,4 +1,18 @@
 name: something-finder-codex
+x-scout-routing: &scout-routing
+  FINDER_MODEL: ${FINDER_MODEL:-}
+  FINDER_MODEL_SCOUT: ${FINDER_MODEL_SCOUT:-}
+  FINDER_EFFORT_SCOUT: ${FINDER_EFFORT_SCOUT:-}
+  FINDER_MODEL_CHEAP_TRIAGER: ${FINDER_MODEL_CHEAP_TRIAGER:-}
+  FINDER_EFFORT_CHEAP_TRIAGER: ${FINDER_EFFORT_CHEAP_TRIAGER:-}
+  FINDER_MODEL_PORTFOLIO_REVIEWER: ${FINDER_MODEL_PORTFOLIO_REVIEWER:-}
+  FINDER_EFFORT_PORTFOLIO_REVIEWER: ${FINDER_EFFORT_PORTFOLIO_REVIEWER:-}
+  FINDER_MODEL_INVESTIGATOR: ${FINDER_MODEL_INVESTIGATOR:-}
+  FINDER_EFFORT_INVESTIGATOR: ${FINDER_EFFORT_INVESTIGATOR:-}
+  FINDER_MODEL_VERIFIER: ${FINDER_MODEL_VERIFIER:-}
+  FINDER_EFFORT_VERIFIER: ${FINDER_EFFORT_VERIFIER:-}
+  FINDER_MODEL_REPORTER: ${FINDER_MODEL_REPORTER:-}
+  FINDER_EFFORT_REPORTER: ${FINDER_EFFORT_REPORTER:-}
 x-analysis: &analysis
   build:
     context: .
@@ -28,6 +42,8 @@ x-analysis: &analysis
   networks: [analysis-internal]
   logging:
     driver: none
+  environment:
+    <<: *scout-routing
   healthcheck:
     test: [CMD, python, -m, ctf_mcp.healthcheck]
     interval: 30s
@@ -56,6 +72,7 @@ services:
     volumes:
       - codex-state-v1:/home/node/.codex
     environment:
+      <<: *scout-routing
       FINDER_WEB: ${FINDER_WEB:-0}
       FINDER_PLATFORM: ${FINDER_PLATFORM:-0}
       FINDER_MODEL: ${FINDER_MODEL:-}
@@ -157,8 +174,10 @@ services:
     tty: true
     entrypoint: [finder]
     environment:
+      <<: *scout-routing
       FINDER_CONFIG: /etc/finder/browser.json
     volumes:
+      - evidence-v1:/results
       - browser-sessions-v1:/browser-state
       - type: bind
         source: ./.operator/programs

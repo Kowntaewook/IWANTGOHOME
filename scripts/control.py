@@ -95,6 +95,40 @@ def commands(action, extra, env):
             cmd += ["-v", str(parent) + ":/plan-output"]
             forwarded += ["--output", "/plan-output/" + output.name]
         return [cmd + ["operator", "plan", *forwarded]]
+    if action == "scout":
+        if not extra:
+            raise ValueError("scout requires a subcommand")
+        parser = argparse.ArgumentParser(add_help=False)
+        actions = parser.add_subparsers(dest="operation", required=True)
+        run = actions.add_parser("run")
+        run.add_argument("--program")
+        run.add_argument("--record")
+        run.add_argument("--force", action="store_true")
+        run.add_argument("--slots", type=int, default=10)
+        actions.add_parser("status")
+        proposals = actions.add_parser("proposals")
+        proposals.add_argument("--program")
+        proposals.add_argument("--limit", type=int, default=100)
+        proposal = actions.add_parser("proposal")
+        proposal.add_argument("id")
+        triage = actions.add_parser("triage")
+        triage.add_argument("--program")
+        triage.add_argument("--force", action="store_true")
+        portfolio = actions.add_parser("portfolio")
+        portfolio.add_argument("--program")
+        portfolio.add_argument("--slots", type=int, default=10)
+        promote = actions.add_parser("promote")
+        promote.add_argument("id")
+        actions.add_parser("doctor")
+        options = parser.parse_args(extra)
+        for value in (getattr(options, "program", None), getattr(options, "id", None), getattr(options, "record", None)):
+            if value is not None and not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}|[0-9a-f]{32}", value):
+                raise ValueError("invalid scout identifier")
+        if not 1 <= getattr(options, "slots", 1) <= 100 or not 1 <= getattr(options, "limit", 1) <= 1000:
+            raise ValueError("invalid scout limit")
+        cmd = compose + ["--profile", "operator", "run", "--rm", "--no-deps"]
+        if hasattr(os, "getuid"):cmd += ["--user", str(os.getuid()) + ":" + str(os.getgid())]
+        return [cmd + ["operator", "scout", *extra]]
     if action == "session-import":
         if len(extra) not in {2, 4} or extra[0] not in {"user_a", "user_b"}:raise ValueError("session-import requires identity and storage-state file")
         if len(extra) == 4 and extra[2] != "--program":raise ValueError("expected --program ID")
@@ -117,7 +151,7 @@ def commands(action, extra, env):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan"])
+    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout"])
     args, extra = parser.parse_known_args()
     if args.action == "install":
         subprocess.run([sys.executable, str(ROOT / "scripts/install_command.py"), *extra], check=True)

@@ -82,7 +82,7 @@ class Records:
     def candidate(self, data):
         required = {"project", "title", "facts", "concerns", "assumptions", "counterarguments",
                     "missing_evidence", "review_status", "remediation", "evidence_ids"}
-        optional = {"program_id", "asset", "finding_category"}
+        optional = {"program_id", "asset", "finding_category", "proposal_id"}
         if not isinstance(data, dict) or not required <= data.keys() or data.keys() - required - optional:
             raise Rejected("invalid_candidate_fields")
         bounded_tree(data)
@@ -90,6 +90,8 @@ class Records:
             raise Rejected("invalid_project")
         if data["review_status"] not in REVIEW_STATUSES | LEGACY_REVIEW_STATUSES:
             raise Rejected("confirmation_requires_human_review_outside_mcp")
+        if "proposal_id" in data:
+            valid_id(data["proposal_id"])
         for k in required - {"evidence_ids"}:
             if not isinstance(data[k], str) or len(data[k]) > 8000:
                 raise Rejected("invalid_candidate_field")
@@ -98,9 +100,10 @@ class Records:
         for record_id in data["evidence_ids"]:
             if self.read(record_id)["kind"] != "analysis":
                 raise Rejected("analysis_evidence_required")
-        supplied = optional & data.keys()
+        program_optional = {"program_id", "asset", "finding_category"}
+        supplied = program_optional & data.keys()
         if supplied:
-            if supplied != optional:raise Rejected("program_candidate_metadata_required")
+            if supplied != program_optional:raise Rejected("program_candidate_metadata_required")
             from .program_store import ProgramStore
             from .programs import program_id, scope_decision
             from .redaction import public_url

@@ -67,6 +67,8 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     localwrite = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
     from .program_tools import register as register_programs
     register_programs(mcp, settings, readonly)
+    from .scout_mcp import register as register_scout
+    register_scout(mcp, settings, readonly)
     from .extended import register
     register(mcp, engine, role, localwrite)
     from .native_tools import register as register_native

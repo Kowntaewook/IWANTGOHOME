@@ -1,16 +1,18 @@
 # 도구·스킬·증거 형식
 
-현재 실제 FastMCP registry에서 생성한 [tool-schemas.json](tool-schemas.json)이 입출력 형식의 기준입니다. 고유 이름은 92개이며 공통 도구가 서비스별로 중복됩니다. 기존 30개 이름을 유지하고 62개를 추가했습니다.
+현재 실제 FastMCP registry에서 생성한 [tool-schemas.json](tool-schemas.json)이 입출력 형식의 기준입니다. 고유 이름은 103개이며 공통 도구가 서비스별로 중복됩니다.
 
 | 서비스 | 도구 수 |
 |---|---:|
-| analysis | 52 |
-| platform | 30 |
-| observer | 13 |
-| android | 22 |
-| android-dynamic | 9 |
-| binary | 19 |
-| burp | 8 |
+| analysis | 63 |
+| platform | 41 |
+| observer | 24 |
+| android | 33 |
+| android-dynamic | 20 |
+| binary | 30 |
+| burp | 19 |
+
+모든 역할에는 기존 program policy 읽기 도구와 함께 `scout_status`, `list_scout_proposals`, `read_scout_proposal`, `scout_dedup_status`, `scout_triage_status`, `scout_portfolio_status`가 공통 등록됩니다. Scout MCP는 읽기 전용이며 SQL, 승인, 실행, 승격 입력을 받지 않습니다.
 
 ## analysis
 

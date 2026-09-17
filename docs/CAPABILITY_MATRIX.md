@@ -26,4 +26,5 @@
 | Compose | 공식 Compose 5.5.1 전체 profile config, tmpfs 옵션 회귀 | Docker daemon/build/up/run 없음 |
 | IWANTTOGOHOME | 공백 경로/다른 cwd/기존 설정 보존/재설치 테스트 | 실제 Mac 홈 설치와 Docker lifecycle 미실행 |
 | 기존 데이터 보존 | 기존 auth/session 합성 바이트, volumes/stop 불변식, source allowlist | 실제 Docker 볼륨 지속성 실행 미검증 |
+| Scout pipeline | 6개 offline Scout, 구조 우선 dedup, cheap triage, seeded portfolio, guarded promotion, SQLite 재구축, CLI/MCP | 실제 외부 대상 요청 없음; proposal/score는 finding·severity·authorization 아님 |
 | 악용/공격/자동제출 | 제공하지 않음 | 고정 목적 관찰·정적 검토 범위 |
