@@ -48,3 +48,16 @@ IWANTTOGOHOME perf compare
 ```
 
 개발 중에는 `IWANTTOGOHOME test fast`, 통합 경계는 `test integration`, 기존 전체 검증은 `test full`을 사용합니다. 역할별 tool schema는 필요할 때만 `FINDER_AGENT_ROLE=Scout|Triage|Portfolio|Investigator|Verifier|Reporter`로 제한하며, 이 필터는 승인·scope·session grant를 대신하지 않습니다. 자세한 측정법은 [Performance](docs/PERFORMANCE.md), 설계와 cache/model routing은 [Optimization](docs/OPTIMIZATION.md)을 참고하세요.
+
+허가된 self-hosted Mattermost pinned revision을 host에서 준비하고 localhost-only A/B validation을 실행할 수 있습니다.
+
+```bash
+FINDER_TARGET=mattermost IWANTGOHOME local prepare
+FINDER_TARGET=mattermost IWANTGOHOME local up
+FINDER_TARGET=mattermost IWANTGOHOME local bootstrap
+FINDER_TARGET=mattermost IWANTGOHOME local validate S12
+FINDER_TARGET=mattermost IWANTGOHOME local status
+FINDER_TARGET=mattermost IWANTGOHOME local stop
+```
+
+Docker와 local process는 host CLI의 fixed action만 실행합니다. Codex/analysis 컨테이너에는 Docker socket이나 실행 tool이 추가되지 않습니다. 자세한 구조는 [Local Target Harness](docs/LOCAL_TARGETS.md), candidate 조건과 evidence 형식은 [Local Validation](docs/LOCAL_VALIDATION.md)을 참고하세요.

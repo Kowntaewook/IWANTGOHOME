@@ -34,4 +34,5 @@ addopts = "-ra"
 markers = [
   "fast: deterministic offline/unit feedback tier",
   "integration: subprocess, MCP stdio, browser, adapter, or native-tool tier",
+  "local_target_integration: optional authorized Docker-host local target checks",
 ]

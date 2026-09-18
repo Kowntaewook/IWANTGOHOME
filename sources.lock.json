@@ -52,9 +52,9 @@
     },
     {
       "name": "Codex CLI",
-      "url": "https://registry.npmjs.org/@openai/codex/0.154.0",
+      "url": "https://registry.npmjs.org/@openai/codex/0.155.0",
       "checked_at": "2026-09-15",
-      "revision_or_document_path": "0.154.0",
+      "revision_or_document_path": "0.155.0",
       "license_and_redistribution": "Apache-2.0 per npm metadata; preserve package notices in images.",
       "adopted_elements": "Pinned CLI for ChatGPT-backed agent. Version/help/config/skill discovery executed.",
       "inclusion": "build_dependency_not_vendored",

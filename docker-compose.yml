@@ -35,11 +35,14 @@ x-analysis: &analysis
   tmpfs: ["/tmp:rw,nosuid,nodev,size=128m,mode=1777"]
   volumes:
     - type: bind
-      source: ${FINDER_INPUT_DIR:-./examples}
+      source: ${FINDER_INPUT_DIR:-./.operator/inputs/default}
       target: /inputs
       read_only: true
       bind:
         create_host_path: false
+    # Trusted project skills are overlaid inside the analysis input namespace.
+    # This intentionally prevents target-controlled .agents files from acting
+    # as IWANTGOHOME skills.
     - evidence-v1:/results
     - type: bind
       source: ./.operator/programs
@@ -79,6 +82,36 @@ services:
     tmpfs: ["/tmp:rw,nosuid,nodev,size=128m,mode=1777"]
     volumes:
       - codex-state-v1:/home/node/.codex
+
+      # Current authorized target input.
+      - type: bind
+        source: ${FINDER_INPUT_DIR:-./.operator/inputs/default}
+        target: /work/input
+        read_only: true
+        bind:
+          create_host_path: false
+
+      # Keep runtime project instructions/skills live without image rebuilds.
+      - type: bind
+        source: ./.agents/skills
+        target: /etc/codex/skills
+        read_only: true
+        bind:
+          create_host_path: false
+
+      - type: bind
+        source: ./AGENTS.md
+        target: /work/AGENTS.md
+        read_only: true
+        bind:
+          create_host_path: false
+
+      - type: bind
+        source: ./prompts
+        target: /work/prompts
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       <<: *scout-routing
       FINDER_WEB: ${FINDER_WEB:-0}
@@ -146,10 +179,11 @@ services:
     mem_limit: 2g
     pids_limit: 256
     shm_size: 256m
-    networks: [analysis-internal, observation-egress]
+    networks: [analysis-internal, observation-egress, host-adapter-egress]
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - type: bind
-        source: ${FINDER_INPUT_DIR:-./examples}
+        source: ${FINDER_INPUT_DIR:-./.operator/inputs/default}
         target: /inputs
         read_only: true
         bind:

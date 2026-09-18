@@ -6,7 +6,10 @@ import re
 from pathlib import Path, PurePosixPath
 import stat
 import zipfile
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # Host-only local status uses no YAML parser.
+    yaml = None
 from .config import Limits, Rejected
 
 
@@ -149,19 +152,22 @@ def bounded_tree(obj, depth=0, budget=None):
     return obj
 
 
-class NoAliasLoader(yaml.SafeLoader):
-    def compose_node(self, parent, index):
-        if self.check_event(yaml.AliasEvent):
-            raise Rejected("yaml_alias_not_supported")
-        return super().compose_node(parent, index)
+if yaml is not None:
+    class NoAliasLoader(yaml.SafeLoader):
+        def compose_node(self, parent, index):
+            if self.check_event(yaml.AliasEvent):
+                raise Rejected("yaml_alias_not_supported")
+            return super().compose_node(parent, index)
 
 
-# GitHub Actions uses `on` as a string key. Keep YAML 1.2 boolean semantics,
-# without modifying PyYAML's global loader or enabling aliases/custom tags.
-NoAliasLoader.yaml_implicit_resolvers = {
-    key: [(tag, pattern) for tag, pattern in rules if tag != "tag:yaml.org,2002:bool"]
-    for key, rules in yaml.SafeLoader.yaml_implicit_resolvers.items()}
-NoAliasLoader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false|True|False|TRUE|FALSE)$"), list("tTfF"))
+    # GitHub Actions uses `on` as a string key. Keep YAML 1.2 boolean semantics,
+    # without modifying PyYAML's global loader or enabling aliases/custom tags.
+    NoAliasLoader.yaml_implicit_resolvers = {
+        key: [(tag, pattern) for tag, pattern in rules if tag != "tag:yaml.org,2002:bool"]
+        for key, rules in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+    NoAliasLoader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false|True|False|TRUE|FALSE)$"), list("tTfF"))
+else:
+    NoAliasLoader = None
 
 
 def structured(data: bytes):
@@ -169,9 +175,11 @@ def structured(data: bytes):
         if data.lstrip().startswith((b"{", b"[")):
             obj = json.loads(data)
         else:
+            if yaml is None:
+                raise Rejected("yaml_support_unavailable")
             obj = yaml.load(data, Loader=NoAliasLoader)
         return bounded_tree(obj)
-    except (ValueError, RecursionError, yaml.YAMLError, UnicodeError):
+    except (ValueError, RecursionError, UnicodeError) + (() if yaml is None else (yaml.YAMLError,)):
         raise Rejected("invalid_structured_input") from None
 
 

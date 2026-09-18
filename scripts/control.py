@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 OPTIONAL = (("FINDER_WEB", "web", "observer"), ("FINDER_PLATFORM", "platform", "platform"),
     ("FINDER_ANDROID", "android", "android"), ("FINDER_ANDROID_DYNAMIC", "android-dynamic", "android-dynamic"),
     ("FINDER_BINARY", "binary", "binary"), ("FINDER_BURP", "burp", "burp"))
@@ -22,10 +23,46 @@ def operator_file(value):
 
 
 def prepare_operator_dirs():
-    for name in (".operator", ".operator/grants", ".operator/programs"):
+    for name in (
+        ".operator",
+        ".operator/grants",
+        ".operator/programs",
+        ".operator/inputs",
+        ".operator/inputs/default",
+    ):
         path = ROOT / name
-        if path.is_symlink():raise ValueError("Operator directories must not be symlinks")
+        if path.is_symlink():
+            raise ValueError("Operator directories must not be symlinks")
         path.mkdir(parents=True, exist_ok=True, mode=0o755)
+
+
+def selected_input_dir(env):
+    """Resolve one authorized input root without falling back to examples/."""
+    explicit = env.get("FINDER_INPUT_DIR")
+
+    if explicit:
+        path = Path(explicit).expanduser().absolute()
+
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError("FINDER_INPUT_DIR must be an existing real directory")
+
+        if any(parent.is_symlink() for parent in path.parents):
+            raise ValueError("FINDER_INPUT_DIR must not have symlink ancestors")
+
+        return path
+
+    target = env.get("FINDER_TARGET", "default").strip()
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", target):
+        raise ValueError("Invalid FINDER_TARGET")
+
+    path = ROOT / ".operator" / "inputs" / target
+
+    if path.is_symlink():
+        raise ValueError("Target input directory must not be a symlink")
+
+    path.mkdir(parents=True, exist_ok=True, mode=0o755)
+    return path
 
 
 def stop_oneoffs(run=subprocess.run):
@@ -185,20 +222,42 @@ def commands(action, extra, env):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout", "perf"])
+    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout", "perf", "local"])
     args, extra = parser.parse_known_args()
     if args.action == "install":
         subprocess.run([sys.executable, str(ROOT / "scripts/install_command.py"), *extra], check=True)
         return
+    if args.action == "local":
+        from ctf_mcp.local_targets import LocalTargetError
+        from local_target import run_local
+        try:
+            raise SystemExit(run_local(ROOT, extra, os.environ))
+        except LocalTargetError as error:
+            print(error.code, file=sys.stderr)
+            if error.code == "ROLE_UNAVAILABLE":
+                print("BLOCKED_BY_LOCAL_SETUP reason=required_supported_role_not_constructible", file=sys.stderr)
+            raise SystemExit(2)
     if not shutil.which("docker"):
         print("Docker CLI not found. Install Docker Engine + Compose v2 (Linux) or Docker Desktop (macOS/Windows). No services or data were changed.", file=sys.stderr)
         raise SystemExit(2)
     # Create only this new project's operator directories; never adopt old volumes.
     try:
         prepare_operator_dirs()
-        for cmd in commands(args.action, extra, os.environ):
-            subprocess.run(cmd, cwd=ROOT, check=True, shell=False)
-        if args.action == "stop":stop_oneoffs()
+
+        runtime_env = os.environ.copy()
+        runtime_env["FINDER_INPUT_DIR"] = str(selected_input_dir(runtime_env))
+
+        for cmd in commands(args.action, extra, runtime_env):
+            subprocess.run(
+                cmd,
+                cwd=ROOT,
+                check=True,
+                shell=False,
+                env=runtime_env,
+            )
+
+        if args.action == "stop":
+            stop_oneoffs()
     except (ValueError, OSError, subprocess.CalledProcessError):
         print("Action failed. Use doctor for credential-free diagnostics; check Docker status and the requested input path.", file=sys.stderr)
         raise SystemExit(2)

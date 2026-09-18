@@ -241,7 +241,29 @@ def test_docker_cli_routes_readonly_mounts_and_unchanged_named_volumes(tmp_path)
         mounts = [v for v in config["services"][role]["volumes"] if isinstance(v, dict) and v["target"] == "/programs"]
         assert len(mounts) == 1 and mounts[0]["read_only"]
     assert config["services"]["operator"]["network_mode"] == "none"
-    assert config["services"]["codex"]["volumes"] == ["codex-state-v1:/home/node/.codex"]
+    codex_volumes = config["services"]["codex"]["volumes"]
+
+    # Preserve the dedicated Codex auth/session volume.
+    assert "codex-state-v1:/home/node/.codex" in codex_volumes
+
+    bind_mounts = {
+        item["target"]: item
+        for item in codex_volumes
+        if isinstance(item, dict) and item.get("type") == "bind"
+    }
+
+    # Runtime inputs and trusted project instructions are read-only.
+    assert bind_mounts["/work/input"]["read_only"] is True
+    assert bind_mounts["/etc/codex/skills"]["read_only"] is True
+    assert bind_mounts["/work/AGENTS.md"]["read_only"] is True
+    assert bind_mounts["/work/prompts"]["read_only"] is True
+
+    # The private Codex state must never be replaced/exposed as a bind mount.
+    assert all(
+        item.get("target") != "/home/node/.codex"
+        for item in codex_volumes
+        if isinstance(item, dict)
+    )
     linked = tmp_path / "linked"
     linked.symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises(ValueError, match="symlink"):

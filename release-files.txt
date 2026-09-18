@@ -25,6 +25,7 @@ IWANTGOHOME
 config/analysis.json
 config/browser.json
 config/codex.toml
+config/local-targets/mattermost.json
 config/tool-downloads.json
 constraints.txt
 docker-compose.yml
@@ -35,6 +36,8 @@ docs/ADAPTERS.md
 docs/CAPABILITY_MATRIX.md
 docs/CHANGES.md
 docs/OPTIMIZATION.md
+docs/LOCAL_TARGETS.md
+docs/LOCAL_VALIDATION.md
 docs/PERFORMANCE.md
 docs/PROGRAMS.md
 docs/PROGRAMS_VALIDATION.md
@@ -85,6 +88,7 @@ scripts/finder.sh
 scripts/install-command.sh
 scripts/install_command.py
 scripts/install_optional_tools.py
+scripts/local_target.py
 scripts/login.ps1
 scripts/login.sh
 scripts/package_source.py
@@ -104,6 +108,10 @@ src/ctf_mcp/engine.py
 src/ctf_mcp/extended.py
 src/ctf_mcp/ghidra_scripts/FinderMetadata.java
 src/ctf_mcp/healthcheck.py
+src/ctf_mcp/local_targets/__init__.py
+src/ctf_mcp/local_targets/base.py
+src/ctf_mcp/local_targets/http.py
+src/ctf_mcp/local_targets/mattermost.py
 src/ctf_mcp/native_tools.py
 src/ctf_mcp/platform_views.py
 src/ctf_mcp/platforms.py
@@ -150,6 +158,8 @@ tests/test_burp_adapter.py
 tests/test_device_adapter.py
 tests/test_distribution.py
 tests/test_mcp.py
+tests/test_local_targets.py
+tests/test_local_targets_integration.py
 tests/test_optional_native.py
 tests/test_performance.py
 tests/test_persistent_sessions.py

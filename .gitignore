@@ -7,6 +7,11 @@ __pycache__/
 .env
 .operator/
 .operator/programs/
+# Executable target checkouts, runtime state and local secrets stay host-only.
+.operator/targets/
+.operator/local-runtime/
+.operator/local-secrets/
+.operator/local-evidence/
 workspace/
 workspace-2/
 work/

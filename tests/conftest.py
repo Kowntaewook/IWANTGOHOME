@@ -20,6 +20,7 @@ INTEGRATION_MODULES = {
     "test_analysis.py", "test_burp_adapter.py", "test_device_adapter.py", "test_mcp.py",
     "test_optional_native.py", "test_persistent_sessions.py", "test_program_integration.py",
     "test_upgrade_offline.py", "test_web.py",
+    "test_local_targets_integration.py",
 }
 INTEGRATION_TEST_NAMES = {"test_actual_codex_discovery_when_available"}
 
