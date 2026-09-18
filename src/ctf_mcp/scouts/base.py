@@ -227,7 +227,15 @@ class BaseScout:
 
 
 def record_hash(record: dict[str, Any]) -> str:
-    raw = json.dumps(record, sort_keys=True, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode()
+    # IDs, timestamps and provenance paths are storage metadata. The Scout input
+    # is the immutable, sanitized semantic payload plus its parser version.
+    material = {
+        "kind": record.get("kind"),
+        "analyzer_version": record.get("analyzer_version", "unknown"),
+        "payload": record.get("payload"),
+    }
+    raw = json.dumps(material, sort_keys=True, ensure_ascii=True,
+                     separators=(",", ":"), allow_nan=False).encode()
     return hashlib.sha256(raw).hexdigest()
 
 

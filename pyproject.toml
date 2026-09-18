@@ -31,3 +31,7 @@ ctf_mcp = ["ghidra_scripts/*.java"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+  "fast: deterministic offline/unit feedback tier",
+  "integration: subprocess, MCP stdio, browser, adapter, or native-tool tier",
+]

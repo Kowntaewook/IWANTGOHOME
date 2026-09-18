@@ -1,28 +1,41 @@
 # Base image tags/digests are recorded in sources.lock.json. Docker build unverified here.
-FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS analysis
+FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime-deps
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /opt/finder
+
+# Dependency metadata changes invalidate installs; ordinary src changes do not.
 COPY pyproject.toml README.md constraints.txt ./
+RUN python -c "import subprocess,sys,tomllib; p=tomllib.load(open('pyproject.toml','rb')); subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','-c','constraints.txt','setuptools==80.9.0','wheel==0.45.1',*p['project']['dependencies']])" \
+    && apt-get update && apt-get install -y --no-install-recommends ripgrep \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 analyst \
+    && mkdir -p /inputs /results /grants /browser-state /programs \
+    && chown analyst:analyst /results /grants /browser-state
+
+FROM runtime-deps AS analysis
 COPY src ./src
-RUN pip install --no-cache-dir -c constraints.txt . && useradd --create-home --uid 1000 analyst \
-    && mkdir -p /inputs /results /grants /browser-state /programs && chown analyst:analyst /results /grants /browser-state
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
 COPY config/analysis.json /etc/finder/config.json
 COPY config/browser.json /etc/finder/browser.json
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends ripgrep \
-    && rm -rf /var/lib/apt/lists/*
 ENV FINDER_CONFIG=/etc/finder/config.json
 USER analyst
 ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "analysis", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
-FROM analysis AS platform
-USER root
-RUN pip install --no-cache-dir -c constraints.txt '.[platform]'
+FROM runtime-deps AS platform-deps
+RUN python -c "import subprocess,sys,tomllib; p=tomllib.load(open('pyproject.toml','rb')); subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','-c','constraints.txt',*p['project']['optional-dependencies']['platform']])"
+
+FROM platform-deps AS platform
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
+ENV FINDER_CONFIG=/etc/finder/config.json
 USER analyst
+ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "platform", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
-FROM platform AS java-tools
+FROM platform-deps AS java-tools
 USER root
 COPY scripts/install_optional_tools.py ./scripts/install_optional_tools.py
 COPY config/tool-downloads.json ./config/tool-downloads.json
@@ -38,40 +51,72 @@ RUN python scripts/install_optional_tools.py jadx \
     && rm -rf /var/lib/apt/lists/*
 COPY docker/apktool.sh /usr/local/bin/apktool
 RUN chmod +x /usr/local/bin/apktool
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
+ENV FINDER_CONFIG=/etc/finder/config.json
 ENV PATH=/opt/finder-tools/jadx/bin:/opt/finder-tools/java/bin:/usr/local/bin:/usr/bin:/bin
 USER analyst
+ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "android", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
 FROM java-tools AS binary
 RUN python scripts/install_optional_tools.py ghidra
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
+ENV FINDER_CONFIG=/etc/finder/config.json
 USER analyst
+ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "binary", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
-FROM analysis AS android-dynamic
-USER root
-RUN pip install --no-cache-dir -c constraints.txt '.[device]' \
+FROM runtime-deps AS device-deps
+RUN python -c "import subprocess,sys,tomllib; p=tomllib.load(open('pyproject.toml','rb')); subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','-c','constraints.txt',*p['project']['optional-dependencies']['device']])" \
     && apt-get update && apt-get install -y --no-install-recommends adb=1:29.0.6-28 \
     && rm -rf /var/lib/apt/lists/*
+
+FROM device-deps AS android-dynamic
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
+ENV FINDER_CONFIG=/etc/finder/config.json
 USER analyst
+ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "android-dynamic", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
 FROM analysis AS burp
 CMD ["--role", "burp", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
-FROM analysis AS browser
+FROM runtime-deps AS browser-deps
 USER root
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN pip install --no-cache-dir -c constraints.txt '.[browser]' && python -m playwright install --with-deps chromium \
+RUN python -c "import subprocess,sys,tomllib; p=tomllib.load(open('pyproject.toml','rb')); subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','-c','constraints.txt',*p['project']['optional-dependencies']['browser']])" \
+    && python -m playwright install --with-deps chromium \
     && chmod -R a+rX /opt/playwright && rm -rf /var/lib/apt/lists/*
-USER analyst
+
+FROM browser-deps AS browser
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
 ENV FINDER_CONFIG=/etc/finder/browser.json
+USER analyst
+ENTRYPOINT ["finder-mcp"]
 CMD ["--role", "observer", "--transport", "streamable-http", "--host", "0.0.0.0"]
 
-FROM browser AS test
-USER root
-RUN pip install --no-cache-dir -c constraints.txt '.[platform,test]'
+FROM browser-deps AS test-deps
+RUN python -c "import subprocess,sys,tomllib; p=tomllib.load(open('pyproject.toml','rb')); extras=p['project']['optional-dependencies']; subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir','-c','constraints.txt',*extras['platform'],*extras['test']])"
+
+FROM test-deps AS test
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
 # .dockerignore is an allowlist; the test image also verifies the source ZIP manifest.
 COPY . .
+COPY config/analysis.json /etc/finder/config.json
+COPY config/browser.json /etc/finder/browser.json
 USER analyst
 ENV PYTEST_ADDOPTS="-p no:cacheprovider"
 ENTRYPOINT ["python", "-m", "pytest"]

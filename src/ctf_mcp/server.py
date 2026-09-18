@@ -39,6 +39,10 @@ class Candidate(BaseModel):
 
 class AnalysisMCP(FastMCP):
     async def call_tool(self, name, arguments):
+        self._performance_tool_calls = getattr(self, "_performance_tool_calls", 0) + 1
+        used = getattr(self, "_performance_tools_used", set())
+        used.add(str(name)[:128])
+        self._performance_tools_used = used
         try:
             if len(json.dumps(arguments).encode()) > 65536:
                 raise Rejected("tool_argument_limit")
@@ -54,7 +58,7 @@ class AnalysisMCP(FastMCP):
             return CallToolResult(isError=True, content=[TextContent(type="text", text=json.dumps(data))], structuredContent=data)
 
 
-def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
+def create_server(settings, role="analysis", host="127.0.0.1", port=8000, agent_role=None):
     if role not in {"analysis", "platform", "observer", "burp", "android", "android-dynamic", "binary"}:raise Rejected("invalid_server_role")
     # SDK exception logs may contain parser input. Emit structured codes only.
     logging.disable(logging.CRITICAL)
@@ -75,6 +79,15 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     from .native_tools import register as register_native
     register_native(mcp, engine, role, localwrite)
 
+    def finalized():
+        from .tool_routing import apply_tool_filter, serialized_tool_schema_bytes
+        canonical = apply_tool_filter(mcp, agent_role)
+        registered = mcp._tool_manager.list_tools()
+        mcp._performance_agent_role = canonical or "legacy"
+        mcp._performance_tools_exposed = len(registered)
+        mcp._performance_schema_bytes = serialized_tool_schema_bytes(registered)
+        return mcp
+
     @mcp.tool(annotations=readonly)
     def health() -> dict[str, Any]:
         """Return server role and installed analyzer versions, without credentials or paths."""
@@ -83,7 +96,14 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
             try:packages[p] = version(p)
             except PackageNotFoundError:packages[p] = None
         return {"status": "ok", "version": VERSION, "role": role, "packages": packages,
-                "limits": settings.limits.__dict__, "destination_egress_firewall": False}
+                "limits": settings.limits.__dict__, "destination_egress_firewall": False,
+                "tool_telemetry": {
+                    "agent_role": getattr(mcp, "_performance_agent_role", "initializing"),
+                    "tool_calls": getattr(mcp, "_performance_tool_calls", 0),
+                    "tools_exposed": getattr(mcp, "_performance_tools_exposed", 0),
+                    "tools_used": len(getattr(mcp, "_performance_tools_used", set())),
+                    "serialized_tool_schema_bytes": getattr(mcp, "_performance_schema_bytes", 0),
+                    "contains_secrets": False}}
 
     @mcp.tool(annotations=readonly)
     def read_record(record_id: str) -> dict[str, Any]:
@@ -103,11 +123,11 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     if role == "burp":
         from .burp_adapter import register as register_burp
         register_burp(mcp, engine, localwrite)
-        return mcp
+        return finalized()
     if role == "android-dynamic":
         from .device_adapter import register as register_device
         register_device(mcp, engine, localwrite)
-        return mcp
+        return finalized()
 
     if role == "observer":
         observer = Observer(settings)
@@ -148,7 +168,7 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
         def write_regression_test(record_id: str, required_headers: list[str]) -> dict[str, Any]:
             """Save an executable offline pytest assertion for observed response metadata. Does not send requests."""
             return engine.regression(record_id, required_headers)
-        return mcp
+        return finalized()
 
     @mcp.tool(annotations=localwrite)
     def inventory(path: str = ".") -> dict[str, Any]:
@@ -183,7 +203,7 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
         def certificate_metadata(path: str) -> dict[str, Any]:
             """Parse supplied PEM/DER/PKCS7 certificate validity, key type and fingerprints; no trust validation."""
             return engine.analyze("certificate", path)
-        return mcp
+        return finalized()
 
     @mcp.tool(annotations=localwrite)
     def analyze_har(path: str) -> dict[str, Any]:
@@ -259,7 +279,7 @@ def create_server(settings, role="analysis", host="127.0.0.1", port=8000):
     def write_report(project: str) -> dict[str, Any]:
         """Write a human-review report from evidence-linked candidates; never submit it."""
         return engine.records.report(project)
-    return mcp
+    return finalized()
 
 
 def main():
@@ -268,9 +288,10 @@ def main():
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--agent-role", default=os.environ.get("FINDER_AGENT_ROLE"))
     args = parser.parse_args()
     try:
-        server = create_server(Settings.load(), args.role, args.host, args.port)
+        server = create_server(Settings.load(), args.role, args.host, args.port, args.agent_role)
         server.run(transport=args.transport)
     except Rejected as exc:
         print(json.dumps({"error": str(exc)}))

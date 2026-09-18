@@ -131,6 +131,7 @@ class ModelPortfolioSelector:
             add(item, "diversity_fallback")
 
         model_calls = 0
+        model_failures = 0
         if self.reviewer is not None and selected:
             try:
                 # Only minimized scores/hypotheses are supplied; reviewer output cannot authorize or promote.
@@ -142,10 +143,12 @@ class ModelPortfolioSelector:
                 model_calls = 1
             except Exception:
                 model_calls = 1
+                model_failures = 1
         members = [{"proposal_id": p.proposal_id, "program_id": p.program_id,
             "selection_reason": reason, "expected_value": round(self.strategy.score(p, t), 6),
             "estimated_cost": t["estimated_cost"]} for p, t, reason in selected]
         return {"proposal_count": len(items), "eligible_count": len(eligible),
             "selected_count": len(members), "members": members, "quotas": quotas,
             "model_calls": model_calls, "model_role": "PortfolioReviewer" if model_calls else "deterministic_core",
+            "model_failures": model_failures,
             "final_status": "SELECTED" if members else "EMPTY"}

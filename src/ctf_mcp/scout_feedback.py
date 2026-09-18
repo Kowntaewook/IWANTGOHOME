@@ -64,6 +64,7 @@ class ScoutOutcomeFeedback:
                  for r in scout_events(self.records, "scout_outcome", program_id)}
         promoted_at = self._promotion_times()
         created = []
+        index_batch = []
         for record_id in self.records.list():
             record = self.records.read(record_id)
             if record["kind"] != "candidate" or record_id in prior:
@@ -90,8 +91,9 @@ class ScoutOutcomeFeedback:
                 "created_at": utcnow(),
             }
             saved = self.records.save("scout_outcome", value)
-            self.ledger.record_outcome(saved)
+            index_batch.append(saved)
             created.append(value)
+        self.ledger.record_batch(index_batch)
         return {"program_id": program_id, "outcomes_recorded": len(created),
                 "outcomes": created, "authorization_effect": False}
 

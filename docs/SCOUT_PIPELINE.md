@@ -90,6 +90,6 @@ The default portfolio allocates 60% to highest expected value, 20% to high-impac
 
 ## Model routing
 
-IWANTGOHOME keeps the existing Codex backend. It does not install or force another provider or model. Each role reads an optional `FINDER_MODEL_<ROLE>` and `FINDER_EFFORT_<ROLE>` setting, falling back to `FINDER_MODEL` and then to the deterministic implementation. Role suffixes are `SCOUT`, `CHEAP_TRIAGER`, `PORTFOLIO_REVIEWER`, `INVESTIGATOR`, `VERIFIER`, and `REPORTER`.
+IWANTGOHOME keeps the existing Codex backend. It does not install or force another provider or model. Each role reads an optional `FINDER_MODEL_<ROLE>` and `FINDER_EFFORT_<ROLE>` setting, falling back through `FINDER_MODEL_DEFAULT` and legacy `FINDER_MODEL` to the deterministic implementation. Role suffixes are `SCOUT`, `TRIAGE`, `PORTFOLIO`, `INVESTIGATOR`, `VERIFIER`, and `REPORTER`; `CHEAP_TRIAGER` and `PORTFOLIO_REVIEWER` remain compatible aliases. Model calls are bounded per run and proposal, and an unchanged portfolio/model/prompt fingerprint is reused without another call.
 
 Independent verification should receive the immutable evidence IDs and the stated invariant/hypothesis. It should not be prompted with the full Scout reasoning or an investigator's conclusion as an answer to endorse.

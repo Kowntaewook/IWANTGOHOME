@@ -50,6 +50,8 @@ def main():
     add_commands(sub)
     from .scout_cli import add_commands as add_scout_commands
     add_scout_commands(sub)
+    from .perf_cli import add_commands as add_perf_commands
+    add_perf_commands(sub)
     grant = sub.add_parser("approve")
     grant.add_argument("plan")
     grant.add_argument("--grants", default="/grants")
@@ -74,6 +76,9 @@ def main():
             run(args)
         elif args.command == "scout":
             from .scout_cli import run
+            run(args, Settings.load())
+        elif args.command == "perf":
+            from .perf_cli import run
             run(args, Settings.load())
         elif args.command == "approve":approve(args.plan, args.grants, programs_root=args.programs)
         elif args.command == "session-import":

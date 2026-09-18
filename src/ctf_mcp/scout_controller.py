@@ -2,6 +2,8 @@
 
 from collections import Counter
 from dataclasses import asdict
+import hashlib
+import json
 import time
 from typing import Any
 from uuid import uuid4
@@ -9,6 +11,7 @@ from uuid import uuid4
 from .config import Rejected
 from .program_store import ProgramStore
 from .programs import scope_decision
+from .perf import PerformanceMetrics, performance_summary
 from .records import Records, valid_id
 from .scout_ledger import ScoutLedger
 from .scout_experiments import MinimalExperimentPlanner
@@ -22,17 +25,19 @@ from .scouts.base import CandidateProposal, utcnow
 
 
 class ScoutPortfolioController:
-    def __init__(self, settings, *, budget: OfflineAnalysisBudget = OfflineAnalysisBudget(),
-                 triager=None, selector=None, ledger=None, feedback=None, graph=None, planner=None):
+    def __init__(self, settings, *, budget: OfflineAnalysisBudget | None = None,
+                 triager=None, selector=None, ledger=None, feedback=None, graph=None, planner=None,
+                 metrics: PerformanceMetrics | None = None):
         if settings.programs_root is None:
             raise Rejected("program_store_not_configured")
         self.settings = settings
         self.records = Records(settings.results_root, settings.limits, settings.programs_root)
         self.programs = ProgramStore(settings.programs_root)
-        self.budget = budget
+        self.budget = budget or OfflineAnalysisBudget.from_env()
+        self.metrics = metrics or PerformanceMetrics()
         self.triager = triager or CheapTriager()
         self.selector = selector or ModelPortfolioSelector(PortfolioPolicy.from_env())
-        self.ledger = ledger or ScoutLedger(settings.results_root)
+        self.ledger = ledger or ScoutLedger(settings.results_root, metrics=self.metrics)
         self.ledger.sync(self.records)
         self.feedback = feedback or ScoutOutcomeFeedback(self.records, self.ledger)
         self.graph = graph or EvidenceGraphBuilder(self.records, self.ledger)
@@ -59,27 +64,44 @@ class ScoutPortfolioController:
         return result
 
     def run(self, *, program_id=None, record_id=None, force=False, portfolio_slots=10):
-        pipeline = ScoutPipeline(self.settings, budget=self.budget, ledger=self.ledger)
+        self.metrics.reset()
+        total_started = time.perf_counter_ns()
+        pipeline = ScoutPipeline(self.settings, budget=self.budget, ledger=self.ledger,
+                                 metrics=self.metrics)
         scan = pipeline.run(program_id=program_id, record_id=record_id, force=force)
-        feedback = self.feedback.reconcile(scan["program_id"])
-        graph = self.graph.refresh(scan["program_id"])
-        triage = self.triage(program_id=scan["program_id"], proposal_ids=scan["proposal_ids"], force=force)
-        portfolio = self.portfolio(program_id=scan["program_id"], slots=portfolio_slots)
+        with self.metrics.stage("feedback_runtime_ms"):
+            feedback = self.feedback.reconcile(scan["program_id"])
+        with self.metrics.stage("graph_runtime_ms"):
+            graph = self.graph.refresh(scan["program_id"])
+        triage = self.triage(program_id=scan["program_id"], proposal_ids=scan["proposal_ids"],
+                             force=force, _prepared=True)
+        portfolio = self.portfolio(program_id=scan["program_id"], slots=portfolio_slots, force=force)
+        self.metrics.add("total_runtime_ms", (time.perf_counter_ns() - total_started) / 1_000_000)
+        metrics = self.metrics.snapshot()
+        performance = self.records.save("scout_performance", {
+            "program_id": scan["program_id"], "performance_version": "1",
+            "metrics": metrics, "summary": performance_summary(metrics), "created_at": utcnow()})
+        self.ledger.record_performance(performance)
         return {"scan": scan, "feedback": feedback, "graph": {
                     "record_id": graph["record_id"], "node_count": graph["node_count"],
                     "edge_count": graph["edge_count"], "freshness_skip": graph["freshness_skip"]},
             "triage": triage, "portfolio": portfolio,
+            "performance": {"record_id": performance["id"], **performance["payload"]},
             "automatic_promotion": False, "network_requests_sent": 0}
 
-    def triage(self, *, program_id=None, proposal_ids=None, force=False):
+    def triage(self, *, program_id=None, proposal_ids=None, force=False, _prepared=False):
+        started = time.perf_counter_ns()
         profile, approval = self._profile(program_id)
-        self.feedback.reconcile(profile["program_id"])
+        if not _prepared:
+            self.feedback.reconcile(profile["program_id"])
         all_proposals = [p for p, _ in proposal_records(self.records, profile["program_id"])]
-        self.graph.refresh(profile["program_id"])
+        if not _prepared:
+            self.graph.refresh(profile["program_id"])
         wanted = set(proposal_ids) if proposal_ids is not None else None
         previous = self._latest("scout_triage")
         duplicates = self._latest("scout_dedup")
         results = []
+        index_batch = []
         for proposal, _ in proposal_records(self.records, profile["program_id"]):
             if wanted is not None and proposal.proposal_id not in wanted:
                 continue
@@ -98,14 +120,19 @@ class ScoutPortfolioController:
                 graph_support=support, feedback=calibration)
             current = {"program_id": proposal.program_id, **result, "created_at": utcnow()}
             record = self.records.save("scout_triage", current)
-            self.ledger.record_triage(record)
+            index_batch.append(record)
+            self.metrics.add("proposals_triaged")
             results.append(current)
+        self.ledger.record_batch(index_batch)
         counts = Counter(result["decision"] for result in results)
+        self.metrics.add("triage_runtime_ms", (time.perf_counter_ns() - started) / 1_000_000)
         return {"program_id": profile["program_id"], "triaged_count": len(results),
             "decisions": dict(sorted(counts.items())), "results": results,
             "model_calls": 0, "model_role": "deterministic_core"}
 
-    def portfolio(self, *, program_id=None, slots=10, policy: PortfolioPolicy | None = None):
+    def portfolio(self, *, program_id=None, slots=10, policy: PortfolioPolicy | None = None,
+                  force=False):
+        started = time.perf_counter_ns()
         if type(slots) is not int or not 1 <= slots <= 1000:
             raise Rejected("invalid_portfolio_slots")
         profile, _ = self._profile(program_id)
@@ -123,22 +150,48 @@ class ScoutPortfolioController:
                 items.append((proposal, triage_record["payload"]))
         selector = ModelPortfolioSelector(policy or self.selector.policy,
             strategy=self.selector.strategy,
-            reviewer=self.selector.reviewer if self.budget.max_model_calls else None)
+            reviewer=self.selector.reviewer if self.budget.max_model_calls and
+                self.budget.max_model_calls_per_proposal else None)
         allowed_slots = min(slots, self.budget.max_promoted_candidates)
+        route = ModelRouting.from_env()["PortfolioReviewer"]
+        fingerprint_material = {
+            "prompt_version": "portfolio-review-v1", "slots": allowed_slots,
+            "policy": asdict(selector.policy), "model_route": route,
+            "items": [{"proposal_id": proposal.proposal_id,
+                "decision": triage.get("decision"), "triage_score": triage.get("triage_score"),
+                "expected_value": triage.get("expected_value"),
+                "calibrated_confidence": triage.get("calibrated_confidence")}
+                for proposal, triage in items],
+        }
+        input_fingerprint = hashlib.sha256(json.dumps(fingerprint_material, sort_keys=True,
+            separators=(",", ":")).encode()).hexdigest()
+        prior = scout_events(self.records, "scout_portfolio", profile["program_id"])
+        if not force and prior and prior[-1]["payload"].get("input_fingerprint") == input_fingerprint:
+            self.metrics.add("cache_hits")
+            self.metrics.add("portfolio_runtime_ms", (time.perf_counter_ns() - started) / 1_000_000)
+            return {**prior[-1]["payload"], "record_id": prior[-1]["id"], "cache_hit": True,
+                    "model_calls_this_run": 0}
         if allowed_slots:
             result = selector.select(items, allowed_slots)
         else:
             result = {"proposal_count": len(items), "eligible_count": 0, "selected_count": 0,
                 "members": [], "quotas": {}, "model_calls": 0,
-                "model_role": "deterministic_core", "final_status": "EMPTY"}
+                "model_role": "deterministic_core", "model_failures": 0, "final_status": "EMPTY"}
         run_id = uuid4().hex
-        route = ModelRouting.from_env()["PortfolioReviewer"]
         payload = {"run_id": run_id, "program_id": profile["program_id"], **result,
             "policy": asdict(selector.policy), "investigation_seconds": 0,
             "created_at": utcnow(), "automatic_promotion": False, "model_route": route,
-            "model_estimated_cost": 0, "model_duration_ms": 0}
+            "model_estimated_cost": 0, "model_duration_ms": 0,
+            "input_fingerprint": input_fingerprint, "prompt_version": "portfolio-review-v1",
+            "cache_hit": False, "model_calls_this_run": result["model_calls"]}
         record = self.records.save("scout_portfolio", payload)
         self.ledger.record_portfolio(record)
+        self.metrics.add("proposals_selected", result["selected_count"])
+        self.metrics.add("model_calls", min(result["model_calls"], self.budget.max_model_calls))
+        self.metrics.add("model_failures", result.get("model_failures", 0))
+        if result["model_calls"]:
+            self.metrics.model_route("PortfolioReviewer", route.get("effort"))
+        self.metrics.add("portfolio_runtime_ms", (time.perf_counter_ns() - started) / 1_000_000)
         return payload
 
     def _selected(self, proposal_id: str) -> bool:
@@ -242,6 +295,7 @@ class ScoutPortfolioController:
             "duration_ms": int((time.monotonic() - started) * 1000), "created_at": utcnow(),
             "candidate_status": "DISCOVERED", "confirmed": False})
         self.ledger.record_promotion(promotion)
+        self.metrics.add("candidate_promotions")
         return {"proposal_id": proposal_id, "candidate_id": candidate["id"],
             "promotion_record_id": promotion["id"], "status": "PROMOTED",
             "candidate_status": "DISCOVERED", "confirmed": False}
@@ -254,6 +308,7 @@ class ScoutPortfolioController:
             "promotions": len(self.ledger.rows("promotions")),
             "outcomes": len(self.ledger.rows("outcomes")),
             "graph_snapshots": len(self.ledger.rows("graph_snapshots")),
+            "performance_runs": len(self.ledger.rows("performance_runs")),
             "experiment_plans": len(self.ledger.rows("experiment_plans")),
             "ledger_is_evidence_source": False, "immutable_records_are_authoritative": True,
             "ledger_recovered_from_corruption": self.ledger.recovered_corruption,
@@ -339,6 +394,9 @@ class ScoutPortfolioController:
             approval_reason = str(exc)
         dedup = self._latest("scout_dedup").get(proposal_id, {}).get("payload", {})
         triage = self._latest("scout_triage").get(proposal_id, {}).get("payload", {})
+        evaluations = [record["payload"] for record in scout_events(self.records, "scout_evaluation")
+            if record["payload"].get("scout_type") == proposal.scout_type and
+            record["payload"].get("input_record_id") in set(proposal.source_record_ids + proposal.observation_ids)]
         evidence_count = 0
         for record_id in dict.fromkeys(proposal.observation_ids + proposal.source_record_ids):
             try:
@@ -356,6 +414,12 @@ class ScoutPortfolioController:
             "gates": gates, "promotion_ready": all(gates.values()),
             "approval_reason": approval_reason, "scope_reason": scope_reason,
             "triage_decision": triage.get("decision"), "dedup_reason": dedup.get("reason"),
+            "cache": ({"eligible": True, "cache_key": evaluations[-1].get("cache_key"),
+                       "input_record_hash": evaluations[-1].get("input_record_hash"),
+                       "scout_version": evaluations[-1].get("scout_version"),
+                       "program_policy_hash": evaluations[-1].get("program_policy_hash"),
+                       "relevant_config_hash": evaluations[-1].get("relevant_config_hash")}
+                      if evaluations else {"eligible": False, "reason": "evaluation_record_unavailable"}),
             "model_output_is_authorization": False}
 
     def doctor(self):

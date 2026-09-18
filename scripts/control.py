@@ -56,8 +56,13 @@ def commands(action, extra, env):
     if action in {"login", "logout", "switch", "status", "doctor"}:
         return [compose + ["run", "--rm", "--no-deps", "codex", action]]
     if action == "stop":return [compose + [part for _, profile, _ in OPTIONAL for part in ("--profile", profile)] + ["stop"]]
-    if action == "test":return [compose + ["--profile", "verify", "build", "test"],
-                                compose + ["--profile", "verify", "run", "--rm", "test"] + extra]
+    if action == "test":
+        tier_args = {"fast": ["-q", "-m", "fast", "tests"],
+            "integration": ["-q", "-m", "integration", "tests"],
+            "full": ["-q", "tests"]}
+        forwarded = tier_args[extra[0]] if len(extra) == 1 and extra[0] in tier_args else extra
+        return [compose + ["--profile", "verify", "build", "test"],
+                compose + ["--profile", "verify", "run", "--rm", "test"] + forwarded]
     if action in {"program", "plan"}:
         cmd = compose + ["--profile", "operator", "run", "--rm", "--no-deps"]
         if hasattr(os, "getuid"):cmd += ["--user", str(os.getuid()) + ":" + str(os.getgid())]
@@ -95,9 +100,28 @@ def commands(action, extra, env):
             cmd += ["-v", str(parent) + ":/plan-output"]
             forwarded += ["--output", "/plan-output/" + output.name]
         return [cmd + ["operator", "plan", *forwarded]]
-    if action == "scout":
+    if action in {"scout", "perf"}:
         if not extra:
-            raise ValueError("scout requires a subcommand")
+            raise ValueError(action + " requires a subcommand")
+        if action == "perf":
+            parser = argparse.ArgumentParser(add_help=False)
+            actions = parser.add_subparsers(dest="operation", required=True)
+            actions.add_parser("status")
+            benchmark = actions.add_parser("benchmark")
+            benchmark.add_argument("--record")
+            compare = actions.add_parser("compare")
+            compare.add_argument("--before")
+            compare.add_argument("--after")
+            options = parser.parse_args(extra)
+            for value in (getattr(options, "record", None), getattr(options, "before", None),
+                          getattr(options, "after", None)):
+                if value is not None and not re.fullmatch(r"[0-9a-f]{32}", value):
+                    raise ValueError("invalid performance record identifier")
+            if (getattr(options, "before", None) is None) != (getattr(options, "after", None) is None):
+                raise ValueError("performance compare requires both IDs")
+            cmd = compose + ["--profile", "operator", "run", "--rm", "--no-deps"]
+            if hasattr(os, "getuid"):cmd += ["--user", str(os.getuid()) + ":" + str(os.getgid())]
+            return [cmd + ["operator", "perf", *extra]]
         parser = argparse.ArgumentParser(add_help=False)
         actions = parser.add_subparsers(dest="operation", required=True)
         run = actions.add_parser("run")
@@ -161,7 +185,7 @@ def commands(action, extra, env):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout"])
+    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout", "perf"])
     args, extra = parser.parse_known_args()
     if args.action == "install":
         subprocess.run([sys.executable, str(ROOT / "scripts/install_command.py"), *extra], check=True)

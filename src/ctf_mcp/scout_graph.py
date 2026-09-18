@@ -88,6 +88,24 @@ class EvidenceGraphBuilder:
         nodes: dict[str, dict] = {}
         edges: set[tuple[str, str, str]] = set()
         truncated = False
+        pending = proposals
+        incremental_update = False
+        if prior and prior[-1]["payload"].get("graph_version") == self.version:
+            previous = prior[-1]["payload"]
+            try:
+                previous_ids = {item["label"] for item in previous.get("nodes", [])
+                                if item.get("type") == "proposal"}
+                current_ids = {proposal.proposal_id for proposal in proposals}
+                if previous_ids <= current_ids and previous.get("proposals_considered") == len(previous_ids):
+                    nodes = {item["id"]: item for item in previous.get("nodes", [])}
+                    edges = {(item["source"], item["relation"], item["target"])
+                             for item in previous.get("edges", [])}
+                    truncated = bool(previous.get("coverage_truncated"))
+                    pending = [proposal for proposal in proposals if proposal.proposal_id not in previous_ids]
+                    incremental_update = True
+            except (KeyError, TypeError, ValueError):
+                # A graph snapshot is derived cache only; rebuild from immutable proposals.
+                nodes, edges, pending, truncated, incremental_update = {}, set(), proposals, False, False
 
         def node(kind: str, value: str, label: str | None = None) -> str:
             nonlocal truncated
@@ -106,7 +124,7 @@ class EvidenceGraphBuilder:
                 truncated = True
 
         program_node = node("program", program_id)
-        for proposal in proposals:
+        for proposal in pending:
             pnode = node("proposal", proposal.proposal_id)
             edge(program_node, "contains", pnode)
             dimensions = [
@@ -130,6 +148,8 @@ class EvidenceGraphBuilder:
             "coverage_truncated": truncated,
             "node_limit": self.max_nodes, "edge_limit": self.max_edges,
             "contains_raw_source_payloads": False, "authorization_source": False, "created_at": utcnow()}
+        payload["incremental_update"] = incremental_update
+        payload["proposals_added"] = len(pending)
         saved = self.records.save("scout_graph", payload)
         self.ledger.record_graph(saved)
         return {**payload, "record_id": saved["id"], "freshness_skip": False}

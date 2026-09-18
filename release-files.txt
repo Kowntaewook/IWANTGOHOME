@@ -34,6 +34,8 @@ docker/runtime.py
 docs/ADAPTERS.md
 docs/CAPABILITY_MATRIX.md
 docs/CHANGES.md
+docs/OPTIMIZATION.md
+docs/PERFORMANCE.md
 docs/PROGRAMS.md
 docs/PROGRAMS_VALIDATION.md
 docs/DESIGN_MAPPING.md
@@ -105,6 +107,8 @@ src/ctf_mcp/healthcheck.py
 src/ctf_mcp/native_tools.py
 src/ctf_mcp/platform_views.py
 src/ctf_mcp/platforms.py
+src/ctf_mcp/perf.py
+src/ctf_mcp/perf_cli.py
 src/ctf_mcp/records.py
 src/ctf_mcp/redaction.py
 src/ctf_mcp/research_control.py
@@ -137,6 +141,7 @@ src/ctf_mcp/scouts/temporal.py
 src/ctf_mcp/server.py
 src/ctf_mcp/sessions.py
 src/ctf_mcp/source_analysis.py
+src/ctf_mcp/tool_routing.py
 src/ctf_mcp/web.py
 src/ctf_mcp/worker.py
 tests/conftest.py
@@ -146,6 +151,7 @@ tests/test_device_adapter.py
 tests/test_distribution.py
 tests/test_mcp.py
 tests/test_optional_native.py
+tests/test_performance.py
 tests/test_persistent_sessions.py
 tests/test_programs.py
 tests/test_program_integration.py
