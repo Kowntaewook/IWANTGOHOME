@@ -1,2 +1,3 @@
-#!/bin/sh
-exec sh "$HOME/IWANTGOHOME/scripts/finder.sh" "$@"
+#!/usr/bin/env sh
+set -eu
+exec sh "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/scripts/finder.sh" "$@"
