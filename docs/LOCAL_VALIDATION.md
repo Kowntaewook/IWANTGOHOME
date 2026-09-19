@@ -35,6 +35,8 @@ target_channel_member == false
 
 지원되는 API로 이 조합을 만들 수 없으면 bootstrap은 `ROLE_UNAVAILABLE`로 종료하고 각 candidate에 `BLOCKED_BY_LOCAL_SETUP`, `reason=required_supported_role_not_constructible` immutable reassessment를 추가한다. DB를 직접 수정하지 않는다.
 
+Enterprise runtime 검증과 license entitlement는 별개다. `local up`은 Enterprise-ready build만 인정하지만, delegated role bootstrap은 유효한 Enterprise/Enterprise Advanced license 또는 공식 trial이 적용되지 않으면 `ROLE_UNAVAILABLE`로 중단한다.
+
 ## S12
 
 Budget은 최대 8 requests이며 현재 private-channel flow는 2 requests, 조건이 성립하면 DM control 1 request를 추가한다.

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Any, Callable, Sequence
+from urllib.parse import urlsplit
 
 
 TARGET_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
@@ -104,7 +105,9 @@ def load_manifest(root: Path, target_id: str) -> LocalTargetManifest:
         raise LocalTargetError("invalid_local_target_manifest")
     if data["target_id"] != target_id or not re.fullmatch(r"[0-9a-f]{40}", data["revision"]):
         raise LocalTargetError("invalid_local_target_manifest")
-    if data["host_health_url"] != "http://127.0.0.1:8065/api/v4/system/ping":
+    health = urlsplit(data["host_health_url"])
+    if (health.scheme != "http" or health.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or health.username is not None or health.password is not None or health.fragment):
         raise LocalTargetError("invalid_local_target_manifest")
     return LocalTargetManifest(**data)
 
@@ -155,6 +158,8 @@ def load_adapter(
     # changed JSON file can never redirect clone or network operations.
     from .mattermost import MattermostAdapter
 
-    if manifest.repository != MattermostAdapter.repository or manifest.revision != MattermostAdapter.pinned_revision:
+    if (manifest.repository != MattermostAdapter.repository
+            or manifest.revision != MattermostAdapter.pinned_revision
+            or manifest.host_health_url != MattermostAdapter.host_health_url):
         raise LocalTargetError("invalid_local_target_manifest")
     return MattermostAdapter(root, manifest, runner=runner)

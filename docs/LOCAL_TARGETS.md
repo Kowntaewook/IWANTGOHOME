@@ -7,6 +7,9 @@ Local Target Harness는 사용자가 소유하거나 실행을 허가받은 self
 ```text
 repository: https://github.com/mattermost/mattermost
 revision: d283cc6301368f6e3dc0fa6be0a1537a9677750b
+enterprise image: mattermostdevelopment/mattermost-enterprise-edition:d283cc6
+digest: sha256:3c11c93b5f75b4e9bc407711d6ad345c0072cff520e34ffc0e99238a507daeb1
+platform: linux/amd64
 ```
 
 ## 구조와 신뢰 경계
@@ -17,7 +20,7 @@ revision: d283cc6301368f6e3dc0fa6be0a1537a9677750b
 IWANTGOHOME local <fixed action>
   -> scripts/control.py (host)
   -> ctf_mcp.local_targets.MattermostAdapter
-  -> fixed git/docker/go argv + fixed localhost API paths
+  -> adapter-owned fixed git/docker argv + fixed localhost API paths
 ```
 
 모든 subprocess는 argv list와 `shell=False`를 사용한다. Git은 `.operator/targets/` 내부에서만 실행되고 hook 경로를 비활성화한다. Mattermost checkout은 분석 input으로 자동 mount되지 않는다.
@@ -27,7 +30,7 @@ Host 파일은 다음과 같이 분리된다.
 ```text
 .operator/inputs/mattermost/          imported analysis input
 .operator/targets/mattermost/         pinned upstream checkout
-.operator/local-runtime/mattermost/   compose, PID state, Go cache, app data
+.operator/local-runtime/mattermost/   compose, bootstrap state, app data
 .operator/local-secrets/mattermost/   passwords and local config (0700 directory, 0600 files)
 .operator/local-evidence/mattermost/  immutable Records documents
 ```
@@ -59,7 +62,9 @@ FINDER_TARGET=mattermost IWANTGOHOME local reset
 
 ## Runtime and networking
 
-`up`은 source를 다시 검증한 뒤 harness-owned Compose 파일로 `postgres:15`만 시작한다. PostgreSQL은 host process인 Mattermost가 접근해야 하므로 `127.0.0.1:55432`에만 publish된다. Mattermost server는 pinned checkout의 `server/`에서 `go run ./cmd/mattermost`로 실행되며 listen address는 `127.0.0.1:8065`로 고정된다. Go module/cache와 Mattermost data/config는 upstream checkout 밖에 둔다.
+Mattermost `up`은 source를 다시 검증한 뒤 adapter-owned Compose로 `postgres:15`와 digest-pinned Enterprise image 두 service만 시작한다. Image는 `linux/amd64`로 고정하여 Apple Silicon Docker Desktop에서도 emulation으로 동일 artifact를 사용한다. 시작 전 local image의 repo digest/OS/architecture와 `/mattermost/bin/mattermost version`의 pinned build hash, `Build Enterprise Ready: true`를 검증한다. Host `go run`이나 `-tags enterprise` build fallback은 없다.
+
+Mattermost container는 PostgreSQL에 `postgres:5432`로 접근하며, Postgres debugging port는 `127.0.0.1:55432`에만 publish된다. Mattermost host publish는 `127.0.0.1:8065:8065`, container listen address는 `:8065`다. Runtime data는 `.operator/local-runtime/mattermost/data`를 `/mattermost/data`에 rw bind mount하며 다른 operator volume은 mount하지 않는다.
 
 Health gate는 `http://127.0.0.1:8065/api/v4/system/ping`의 `status == OK`만 인정한다. 2초 간격, 최대 150회로 5분에 종료된다. `status`는 clone이나 build를 시작하지 않으며 secret을 읽어 출력하지 않는다.
 
@@ -67,12 +72,14 @@ observer용 주소는 모든 OS에서 `http://host.docker.internal:8065`이다. 
 
 ## Stop and reset
 
-`local stop`은 server process와 PostgreSQL container만 정지한다. PostgreSQL volume, source, runtime data, secrets, immutable evidence, approval/auth/Scout 자료를 보존한다.
+`local stop`은 Compose project의 Mattermost와 PostgreSQL container만 정지한다. PostgreSQL volume, source, runtime data, secrets, immutable evidence, approval/auth/Scout 자료를 보존한다.
 
 `local reset`만 PostgreSQL volume과 synthetic runtime state/secrets를 제거한다. source와 immutable evidence는 유지한다. reset은 사용자가 이 explicit action을 호출했을 때만 실행된다.
 
 ## Requirements and failure codes
 
-Host에는 Python 3.11+, Git, Go, Docker Engine + Compose v2가 필요하다. 주요 오류는 `SOURCE_NOT_PREPARED`, `REPOSITORY_MISMATCH`, `REVISION_MISMATCH`, `SOURCE_DIRTY`, `DOCKER_UNAVAILABLE`, `DEPENDENCY_START_FAILED`, `TARGET_START_FAILED`, `HEALTH_TIMEOUT`, `BOOTSTRAP_FAILED`, `ROLE_UNAVAILABLE`, `VALIDATION_BLOCKED`로 구분된다.
+Mattermost adapter에는 Python 3.11+, Git, Docker Engine + Compose v2가 필요하며 host Go toolchain은 필요하지 않다. 주요 오류는 `SOURCE_NOT_PREPARED`, `REPOSITORY_MISMATCH`, `REVISION_MISMATCH`, `SOURCE_DIRTY`, `DOCKER_UNAVAILABLE`, `IMAGE_MISMATCH`, `ENTERPRISE_RUNTIME_REQUIRED`, `DEPENDENCY_START_FAILED`, `TARGET_START_FAILED`, `HEALTH_TIMEOUT`, `BOOTSTRAP_FAILED`, `ROLE_UNAVAILABLE`, `VALIDATION_BLOCKED`로 구분된다.
+
+Enterprise-ready image는 license를 자동 제공하지 않는다. Delegated Granular Administration은 유효한 Enterprise/Enterprise Advanced license 또는 공식 trial이 적용된 후에만 bootstrap하며, harness는 license/trial을 우회하거나 위조하지 않는다.
 
 Mattermost 전체 build/start는 일반 pytest에서 실행하지 않는다. 허가된 Docker host에서 `FINDER_RUN_LOCAL_TARGET_INTEGRATION=1`을 설정하면 opt-in prepare/status integration test를 실행할 수 있다.

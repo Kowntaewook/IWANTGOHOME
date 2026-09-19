@@ -11,6 +11,10 @@ from ctf_mcp.local_targets.base import LocalTargetError, LocalTargetManifest, lo
 from ctf_mcp.local_targets.http import ALLOWED, LocalMattermostClient, LocalResponse, response_shape
 from ctf_mcp.local_targets.mattermost import (
     COMPOSE,
+    ENTERPRISE_IMAGE,
+    ENTERPRISE_IMAGE_DIGEST,
+    ENTERPRISE_IMAGE_REFERENCE,
+    ENTERPRISE_PLATFORM,
     REQUEST_BUDGETS,
     SYNTHETIC_MESSAGE,
     MattermostAdapter,
@@ -78,6 +82,20 @@ def test_manifest_cannot_override_pinned_repository(tmp_path):
         load_adapter(tmp_path, "mattermost")
 
 
+def test_generic_base_contains_no_mattermost_runtime_policy():
+    root = Path(__file__).resolve().parents[1]
+    code = "\n".join((root / path).read_text() for path in (
+        "src/ctf_mcp/local_targets/base.py",
+        "src/ctf_mcp/local_targets/__init__.py",
+        "scripts/control.py",
+        "scripts/local_target.py",
+    ))
+    for target_specific in (ENTERPRISE_IMAGE, "postgres:15", "8065", "linux/amd64",
+                            "postgres", "BuildEnterpriseReady", "Build Enterprise Ready",
+                            "/mattermost/data", ENTERPRISE_IMAGE_DIGEST):
+        assert target_specific not in code
+
+
 def test_repository_origin_mismatch_is_rejected(tmp_path):
     value = adapter(tmp_path, runner=GitRunner(origin="https://invalid.example/repo"))
     make_source(value)
@@ -139,7 +157,22 @@ def test_subprocesses_never_enable_shell_and_compose_never_mounts_docker_socket(
     assert "/var/run/docker.sock" not in code
     assert "0.0.0.0:8065" not in code
     assert "127.0.0.1:8065" in code
+    assert '"go", "run"' not in code
+    assert "-tags enterprise" not in code
     assert "postgres:15" in COMPOSE
+    local = yaml.safe_load(COMPOSE)
+    assert set(local["services"]) == {"postgres", "mattermost"}
+    mattermost = local["services"]["mattermost"]
+    assert ENTERPRISE_IMAGE == "mattermostdevelopment/mattermost-enterprise-edition:d283cc6"
+    assert ENTERPRISE_IMAGE_DIGEST == "sha256:3c11c93b5f75b4e9bc407711d6ad345c0072cff520e34ffc0e99238a507daeb1"
+    assert mattermost["image"] == ENTERPRISE_IMAGE_REFERENCE
+    assert mattermost["platform"] == ENTERPRISE_PLATFORM == "linux/amd64"
+    assert "user" not in mattermost
+    assert mattermost["ports"] == ["127.0.0.1:8065:8065"]
+    assert mattermost["environment"]["MM_SERVICESETTINGS_LISTENADDRESS"] == ":8065"
+    assert mattermost["environment"]["MM_SERVICESETTINGS_LISTENADDRESS"] != "127.0.0.1:8065"
+    assert "@postgres:5432/mattermost_test" in mattermost["environment"]["MM_SQLSETTINGS_DATASOURCE"]
+    assert mattermost["volumes"] == ["./data:/mattermost/data"]
     compose = yaml.safe_load((root / "docker-compose.yml").read_text())
     assert compose["services"]["observer"]["extra_hosts"] == ["host.docker.internal:host-gateway"]
     assert "host-adapter-egress" in compose["services"]["observer"]["networks"]
@@ -147,16 +180,41 @@ def test_subprocesses_never_enable_shell_and_compose_never_mounts_docker_socket(
 
 
 def test_stop_preserves_source_data_secrets_and_evidence(tmp_path, monkeypatch):
-    value = adapter(tmp_path)
+    runner = GitRunner()
+    value = adapter(tmp_path, runner=runner)
     for path in (value.target_root, value.runtime_root, value.secret_root, value.evidence_root):
         path.mkdir(parents=True, exist_ok=True)
         (path / "preserve").write_text("synthetic")
-    monkeypatch.setattr(value, "_stop_server", lambda: None)
-    monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: None)
+    value._write_runtime_files({"database": "x" * 24})
+    monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: "/fixed/docker")
     result = value.stop()
     assert result["data_preserved"] is True
     assert all((path / "preserve").is_file() for path in
                (value.target_root, value.runtime_root, value.secret_root, value.evidence_root))
+    assert any(call[0][-3:] == ["stop", "mattermost", "postgres"] for call in runner.calls)
+
+
+def test_reset_removes_only_synthetic_runtime_and_preserves_source_evidence(tmp_path, monkeypatch):
+    value = adapter(tmp_path, runner=GitRunner())
+    value._write_runtime_files({"database": "x" * 24})
+    assert stat.S_IMODE((value.runtime_root / "data").stat().st_mode) == 0o777
+    assert stat.S_IMODE(value.runtime_root.stat().st_mode) == 0o700
+    value.target_root.mkdir(parents=True)
+    value.evidence_root.mkdir(parents=True)
+    (value.target_root / "source-preserve").write_text("synthetic")
+    (value.evidence_root / "evidence-preserve").write_text("synthetic")
+    (value.runtime_root / "runtime-preserve").write_text("synthetic")
+    value.bootstrap_file.write_text("{}")
+    value._load_secrets(create=True)
+    monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: "/fixed/docker")
+    result = value.reset()
+    assert result["synthetic_data_removed"] is True
+    assert not (value.runtime_root / "data").exists()
+    assert not value.bootstrap_file.exists()
+    assert not value.secrets_file.exists()
+    assert (value.runtime_root / "runtime-preserve").is_file()
+    assert (value.target_root / "source-preserve").is_file()
+    assert (value.evidence_root / "evidence-preserve").is_file()
 
 
 def test_secret_store_is_private_and_secrets_never_enter_evidence(tmp_path, capsys):
@@ -183,25 +241,23 @@ def test_health_retry_is_bounded_to_five_minutes(tmp_path, monkeypatch):
     sleeps = []
     value.runtime_root.mkdir(parents=True)
     monkeypatch.setattr(value, "_require_source", lambda: None)
-    monkeypatch.setattr(value, "_read_process", lambda: None)
     monkeypatch.setattr(value, "_load_secrets", lambda create: {name: "x" * 24 for name in
                         ("database", "system_admin", "delegated_admin", "victim", "normal_user")})
     monkeypatch.setattr(value, "_write_runtime_files", lambda passwords: None)
     monkeypatch.setattr(value, "_compose", lambda *args, **kwargs: None)
     monkeypatch.setattr(value.runner, "run", lambda *args, **kwargs: subprocess.CompletedProcess([], 0, "", ""))
+    monkeypatch.setattr(value, "_ensure_enterprise_image", lambda progress: {"version": "12.0.0"})
+    service_checks = [0]
+
+    def running_services(**kwargs):
+        service_checks[0] += 1
+        return set() if service_checks[0] == 1 else {"mattermost", "postgres"}
+
+    monkeypatch.setattr(value, "_running_services", running_services)
     monkeypatch.setattr(value, "health", lambda timeout=2: {"healthy": False})
     stopped = []
-    monkeypatch.setattr(value, "_stop_server", lambda: stopped.append(True))
+    monkeypatch.setattr(value, "_stop_services", lambda: stopped.append(True))
     monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: "/fixed")
-
-    class Process:
-        pid = 424242
-
-        def poll(self):
-            return None
-
-    monkeypatch.setattr("ctf_mcp.local_targets.mattermost.subprocess.Popen", lambda *a, **k: Process())
-    monkeypatch.setattr(value, "_process_marker", lambda pid: "synthetic-start")
     with pytest.raises(LocalTargetError, match="HEALTH_TIMEOUT"):
         value.up(progress=lambda _: None)
     assert sleeps == [2] * 150
@@ -212,10 +268,107 @@ def test_health_retry_is_bounded_to_five_minutes(tmp_path, monkeypatch):
 def test_up_never_adopts_an_unowned_healthy_listener(tmp_path, monkeypatch):
     value = adapter(tmp_path)
     monkeypatch.setattr(value, "_require_source", lambda: None)
-    monkeypatch.setattr(value, "_read_process", lambda: None)
+    monkeypatch.setattr(value, "_load_secrets", lambda create: {name: "x" * 24 for name in
+                        ("database", "system_admin", "delegated_admin", "victim", "normal_user")})
+    monkeypatch.setattr(value, "_write_runtime_files", lambda passwords: None)
+    monkeypatch.setattr(value.runner, "run", lambda *args, **kwargs: subprocess.CompletedProcess([], 0, "", ""))
+    monkeypatch.setattr(value, "_ensure_enterprise_image", lambda progress: {"version": "12.0.0"})
+    monkeypatch.setattr(value, "_running_services", lambda **kwargs: set())
     monkeypatch.setattr(value, "health", lambda timeout=2: {"healthy": True})
+    monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: "/fixed")
     with pytest.raises(LocalTargetError, match="TARGET_START_FAILED"):
         value.up(progress=lambda _: None)
+
+
+def test_enterprise_version_probe_accepts_exact_prevalidated_build():
+    result = MattermostAdapter._validate_enterprise_version("""Version: 12.0.0
+Build Number: master-35359240453
+Build Date: Fri Sep 18 14:59:51 UTC 2026
+Build Hash: d283cc6301368f6e3dc0fa6be0a1537a9677750b
+Build Enterprise Ready: true
+""")
+    assert result == {
+        "version": "12.0.0",
+        "build_number": "master-35359240453",
+        "build_date": "Fri Sep 18 14:59:51 UTC 2026",
+        "build_hash": REVISION,
+        "enterprise_ready": "true",
+    }
+
+
+def test_enterprise_ready_false_is_rejected():
+    with pytest.raises(LocalTargetError, match="ENTERPRISE_RUNTIME_REQUIRED"):
+        MattermostAdapter._validate_enterprise_version(
+            "Build Hash: " + REVISION + "\nBuild Enterprise Ready: false\n"
+        )
+
+
+def test_enterprise_build_hash_mismatch_is_rejected():
+    with pytest.raises(LocalTargetError, match="IMAGE_MISMATCH"):
+        MattermostAdapter._validate_enterprise_version(
+            "Build Hash: " + "0" * 40 + "\nBuild Enterprise Ready: true\n"
+        )
+
+
+def test_local_image_digest_or_platform_mismatch_is_rejected(tmp_path):
+    class ImageRunner:
+        def run(self, argv, **kwargs):
+            value = [{"RepoDigests": ["mattermostdevelopment/mattermost-enterprise-edition@sha256:" + "0" * 64],
+                      "Os": "linux", "Architecture": "amd64"}]
+            return subprocess.CompletedProcess(argv, 0, json.dumps(value), "")
+
+    value = adapter(tmp_path, runner=ImageRunner())
+    with pytest.raises(LocalTargetError, match="IMAGE_MISMATCH"):
+        value._inspect_enterprise_image(timeout=1, allow_missing=False)
+
+
+def test_running_container_image_mismatch_is_rejected(tmp_path, monkeypatch):
+    class ContainerRunner:
+        def run(self, argv, **kwargs):
+            value = [{
+                "Config": {
+                    "Image": "mattermostdevelopment/mattermost-enterprise-edition:wrong",
+                    "Labels": {
+                        "com.docker.compose.project": "iwantgohome-local-mattermost",
+                        "com.docker.compose.service": "mattermost",
+                    },
+                },
+                "State": {"Running": True},
+            }]
+            return subprocess.CompletedProcess(argv, 0, json.dumps(value), "")
+
+    value = adapter(tmp_path, runner=ContainerRunner())
+    monkeypatch.setattr(value, "_compose", lambda *args, **kwargs:
+                        subprocess.CompletedProcess([], 0, "a" * 64 + "\n", ""))
+    with pytest.raises(LocalTargetError, match="IMAGE_MISMATCH"):
+        value._verify_owned_mattermost_container({"database": "x" * 24})
+
+
+def test_health_client_is_fixed_to_localhost_only():
+    assert LocalMattermostClient.host == "127.0.0.1"
+    assert LocalMattermostClient.port == 8065
+
+
+def test_bootstrap_rejects_missing_active_enterprise_runtime(tmp_path, monkeypatch):
+    value = adapter(tmp_path)
+    monkeypatch.setattr(value, "_require_source", lambda: None)
+    monkeypatch.setattr(value, "health", lambda timeout=2: {"healthy": True})
+    monkeypatch.setattr(value, "_load_secrets", lambda create: {"database": "x" * 24})
+    monkeypatch.setattr(value, "_require_active_enterprise_runtime",
+                        lambda passwords: (_ for _ in ()).throw(LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")))
+    with pytest.raises(LocalTargetError, match="ENTERPRISE_RUNTIME_REQUIRED"):
+        value.bootstrap()
+
+
+def test_validate_rechecks_active_enterprise_runtime(tmp_path, monkeypatch):
+    value = adapter(tmp_path)
+    checked = []
+    monkeypatch.setattr(value, "health", lambda timeout=2: {"healthy": True})
+    monkeypatch.setattr(value, "_load_secrets", lambda create: {"database": "x" * 24})
+    monkeypatch.setattr(value, "_require_active_enterprise_runtime", lambda passwords: checked.append(True))
+    monkeypatch.setattr(value, "_validate_s12", lambda: {"candidate": "S12"})
+    assert value.validate("S12") == [{"candidate": "S12"}]
+    assert checked == [True]
 
 
 def test_candidate_request_budgets_and_unknown_candidate(tmp_path, monkeypatch):
@@ -249,11 +402,15 @@ def test_synthetic_resource_marker_and_status_mapping(tmp_path, monkeypatch):
         "actual_commit": REVISION, "source_status": "READY",
     })
     monkeypatch.setattr(value, "health", lambda timeout=0.75: {"status": "healthy", "healthy": True})
-    monkeypatch.setattr(value, "_read_process", lambda: None)
     monkeypatch.setattr("ctf_mcp.local_targets.mattermost.shutil.which", lambda _: None)
     status = value.status()
     assert status["source_status"] == "READY"
     assert status["health"] == "healthy"
+    assert status["enterprise_image"] == ENTERPRISE_IMAGE
+    assert status["expected_image_digest"] == ENTERPRISE_IMAGE_DIGEST
+    assert status["image_digest"] is None
+    assert status["mattermost_container"] == "not_configured"
+    assert status["postgres_container"] == "not_configured"
     assert status["host_endpoint"] == "http://127.0.0.1:8065"
     assert status["observer_linux_mapping"] == "host-gateway"
 

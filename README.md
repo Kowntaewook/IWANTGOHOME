@@ -61,3 +61,5 @@ FINDER_TARGET=mattermost IWANTGOHOME local stop
 ```
 
 Docker와 local process는 host CLI의 fixed action만 실행합니다. Codex/analysis 컨테이너에는 Docker socket이나 실행 tool이 추가되지 않습니다. 자세한 구조는 [Local Target Harness](docs/LOCAL_TARGETS.md), candidate 조건과 evidence 형식은 [Local Validation](docs/LOCAL_VALIDATION.md)을 참고하세요.
+
+Mattermost runtime은 `mattermostdevelopment/mattermost-enterprise-edition:d283cc6` (`linux/amd64`) digest-pinned image만 사용하며 host source-build fallback을 사용하지 않습니다. Delegated role bootstrap에는 유효한 Enterprise license 또는 공식 trial이 별도로 필요합니다.

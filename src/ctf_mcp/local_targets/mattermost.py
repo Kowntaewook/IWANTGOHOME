@@ -9,7 +9,6 @@ from pathlib import Path
 import re
 import secrets
 import shutil
-import signal
 import subprocess
 import time
 from typing import Any, Callable
@@ -37,14 +36,19 @@ CANDIDATES = {
     "S15": "67695a713fc9486eafc96d41f8b3e6f6",
 }
 REQUEST_BUDGETS = {"S12": 8, "S13": 5, "S15": 5}
-COMPOSE = """name: iwantgohome-local-mattermost
+ENTERPRISE_IMAGE = "mattermostdevelopment/mattermost-enterprise-edition:d283cc6"
+ENTERPRISE_IMAGE_DIGEST = "sha256:3c11c93b5f75b4e9bc407711d6ad345c0072cff520e34ffc0e99238a507daeb1"
+ENTERPRISE_IMAGE_REFERENCE = ENTERPRISE_IMAGE + "@" + ENTERPRISE_IMAGE_DIGEST
+ENTERPRISE_PLATFORM = "linux/amd64"
+COMPOSE_PROJECT = "iwantgohome-local-mattermost"
+COMPOSE = f"""name: iwantgohome-local-mattermost
 services:
   postgres:
     image: postgres:15
     restart: "no"
     environment:
       POSTGRES_USER: mmuser
-      POSTGRES_PASSWORD: ${FINDER_LOCAL_DB_PASSWORD:?local database password required}
+      POSTGRES_PASSWORD: ${{FINDER_LOCAL_DB_PASSWORD:?local database password required}}
       POSTGRES_DB: mattermost_test
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
     ports:
@@ -58,8 +62,34 @@ services:
       retries: 60
     networks: [local-target-internal]
     security_opt: [no-new-privileges:true]
+  mattermost:
+    image: {ENTERPRISE_IMAGE_REFERENCE}
+    platform: {ENTERPRISE_PLATFORM}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: "postgres://mmuser:${{FINDER_LOCAL_DB_PASSWORD:?local database password required}}@postgres:5432/mattermost_test?sslmode=disable&connect_timeout=10"
+      MM_SERVICESETTINGS_SITEURL: http://127.0.0.1:8065
+      MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
+      MM_TEAMSETTINGS_ENABLEOPENSERVER: "true"
+      MM_PLUGINSETTINGS_ENABLE: "false"
+      MM_PLUGINSETTINGS_ENABLEUPLOADS: "false"
+      MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS: "false"
+      MM_FILESETTINGS_DIRECTORY: /mattermost/data
+      MM_LOGSETTINGS_ENABLECONSOLE: "true"
+      MM_LOGSETTINGS_ENABLEFILE: "false"
+    ports:
+      - 127.0.0.1:8065:8065
+    volumes:
+      - ./data:/mattermost/data
+    networks: [local-target-internal]
+    security_opt: [no-new-privileges:true]
 volumes:
-  mattermost-postgres-data: {}
+  mattermost-postgres-data: {{}}
 networks:
   local-target-internal:
     driver: bridge
@@ -70,6 +100,7 @@ class MattermostAdapter(LocalTargetAdapter):
     target_id = "mattermost"
     repository = "https://github.com/mattermost/mattermost"
     pinned_revision = "d283cc6301368f6e3dc0fa6be0a1537a9677750b"
+    host_health_url = "http://127.0.0.1:8065/api/v4/system/ping"
 
     def __init__(
         self,
@@ -93,11 +124,8 @@ class MattermostAdapter(LocalTargetAdapter):
         self.secret_root = self.operator / "local-secrets" / self.target_id
         self.evidence_root = self.operator / "local-evidence" / self.target_id
         self.compose_file = self.runtime_root / "compose.yaml"
-        self.go_work_file = self.runtime_root / "go.work"
-        self.process_file = self.runtime_root / "process.json"
         self.bootstrap_file = self.runtime_root / "bootstrap.json"
         self.secrets_file = self.secret_root / "secrets.json"
-        self.config_file = self.secret_root / "config.json"
 
     # ----- source acquisition -------------------------------------------------
     def _git(self, argv: list[str], cwd: Path, timeout: float = 30) -> subprocess.CompletedProcess[str]:
@@ -222,32 +250,9 @@ class MattermostAdapter(LocalTargetAdapter):
             os.chmod(self.compose_file, 0o600)
         elif self.compose_file.is_symlink() or self.compose_file.read_text(encoding="utf-8") != COMPOSE:
             raise LocalTargetError("unsafe_local_runtime")
-        go_work = "go 1.26.7\n\nuse (\n\t" + str(self.server_root) + "\n\t" + str(self.server_root / "public") + "\n)\n"
-        if self.go_work_file.exists() and (self.go_work_file.is_symlink() or self.go_work_file.read_text(encoding="utf-8") != go_work):
-            raise LocalTargetError("unsafe_local_runtime")
-        if not self.go_work_file.exists():
-            self.go_work_file.write_text(go_work, encoding="utf-8")
-            os.chmod(self.go_work_file, 0o600)
-        config = {
-            "ServiceSettings": {
-                "SiteURL": "http://127.0.0.1:8065",
-                "ListenAddress": "127.0.0.1:8065",
-                "EnableLocalMode": True,
-            },
-            "TeamSettings": {"EnableOpenServer": True},
-            "SqlSettings": {
-                "DriverName": "postgres",
-                "DataSource": "postgres://mmuser:" + passwords["database"] + "@127.0.0.1:55432/mattermost_test?sslmode=disable&connect_timeout=10",
-            },
-            "LogSettings": {"EnableConsole": True, "ConsoleLevel": "INFO", "EnableFile": False},
-            "FileSettings": {"Directory": str(self.runtime_root / "data")},
-            "PluginSettings": {"Enable": False, "EnableUploads": False},
-            "EmailSettings": {"SendEmailNotifications": False},
-        }
-        atomic_private_json(self.config_file, config)
-        secure_directory(self.runtime_root / "data")
-        secure_directory(self.runtime_root / "go-cache")
-        secure_directory(self.runtime_root / "go-path")
+        # The parent remains 0700 host-only. The mounted leaf must be writable by
+        # the image's fixed non-root user on both Docker Desktop and Linux.
+        secure_directory(self.runtime_root / "data", mode=0o777)
 
     def _docker_env(self, passwords: dict[str, str] | None = None) -> dict[str, str]:
         env = dict(os.environ)
@@ -268,7 +273,7 @@ class MattermostAdapter(LocalTargetAdapter):
             raise LocalTargetError("unsafe_local_runtime") from None
         try:
             return self.runner.run(
-                ["docker", "compose", "-p", "iwantgohome-local-mattermost", "-f", str(self.compose_file), *tail],
+                ["docker", "compose", "-p", COMPOSE_PROJECT, "-f", str(self.compose_file), *tail],
                 cwd=self.runtime_root,
                 timeout=timeout,
                 env=self._docker_env(passwords),
@@ -277,83 +282,139 @@ class MattermostAdapter(LocalTargetAdapter):
             code = "DEPENDENCY_START_FAILED" if tail[:1] == ["up"] else "DOCKER_UNAVAILABLE"
             raise LocalTargetError(code) from None
 
-    def _server_env(self) -> dict[str, str]:
-        env = dict(os.environ)
-        env.update({
-            "MM_CONFIG": str(self.config_file),
-            "MM_SERVICESETTINGS_SITEURL": "http://127.0.0.1:8065",
-            "MM_SERVICESETTINGS_LISTENADDRESS": "127.0.0.1:8065",
-            "MM_SERVICESETTINGS_ENABLELOCALMODE": "true",
-            "MM_TEAMSETTINGS_ENABLEOPENSERVER": "true",
-            "MM_PLUGINSETTINGS_ENABLE": "false",
-            "MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS": "false",
-            "GOCACHE": str(self.runtime_root / "go-cache"),
-            "GOPATH": str(self.runtime_root / "go-path"),
-            "GOWORK": str(self.go_work_file),
-            "GOFLAGS": "-buildvcs=false -mod=readonly",
-            "BUILD_ENTERPRISE": "false",
-        })
-        return env
-
-    def _read_process(self) -> int | None:
+    def _inspect_enterprise_image(self, *, timeout: float, allow_missing: bool) -> dict[str, str] | None:
         try:
-            if self.process_file.is_symlink():
+            result = self.runner.run(
+                ["docker", "image", "inspect", ENTERPRISE_IMAGE_REFERENCE],
+                cwd=self.root,
+                timeout=timeout,
+                env=self._docker_env(),
+            )
+            value = json.loads(result.stdout)
+            if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+                raise LocalTargetError("IMAGE_MISMATCH")
+            metadata = value[0]
+            digests = metadata.get("RepoDigests")
+            if metadata.get("Os") != "linux" or metadata.get("Architecture") != "amd64":
+                raise LocalTargetError("IMAGE_MISMATCH")
+            if not isinstance(digests, list) or not any(
+                isinstance(item, str) and item.endswith("@" + ENTERPRISE_IMAGE_DIGEST) for item in digests
+            ):
+                raise LocalTargetError("IMAGE_MISMATCH")
+            return {"digest": ENTERPRISE_IMAGE_DIGEST, "platform": ENTERPRISE_PLATFORM}
+        except LocalTargetError:
+            raise
+        except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+            if allow_missing:
                 return None
-            data = json.loads(self.process_file.read_text(encoding="utf-8"))
-            pid = data.get("pid")
-            return pid if type(pid) is int and pid > 1 else None
-        except (OSError, ValueError, AttributeError):
-            return None
+            raise LocalTargetError("IMAGE_MISMATCH") from None
 
-    def _owned_process(self, pid: int) -> bool:
+    @staticmethod
+    def _validate_enterprise_version(output: str) -> dict[str, str]:
+        fields: dict[str, str] = {}
+        for line in output.splitlines():
+            if ":" in line:
+                key, value = line.split(":", 1)
+                fields[key.strip()] = value.strip()
+        if fields.get("Build Enterprise Ready", "").lower() != "true":
+            raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")
+        if fields.get("Build Hash") != MattermostAdapter.pinned_revision:
+            raise LocalTargetError("IMAGE_MISMATCH")
+        return {
+            "version": fields.get("Version", "unknown"),
+            "build_number": fields.get("Build Number", "unknown"),
+            "build_date": fields.get("Build Date", "unknown"),
+            "build_hash": fields["Build Hash"],
+            "enterprise_ready": fields["Build Enterprise Ready"].lower(),
+        }
+
+    def _probe_enterprise_version(self, *, timeout: float = 30) -> dict[str, str]:
         try:
-            os.kill(pid, 0)
-            state = _read_json(self.process_file)
-            if not state or state.get("pid") != pid or not state.get("start_marker"):
-                return False
-            if self._process_marker(pid) != state["start_marker"]:
-                return False
-            proc = Path("/proc") / str(pid) / "cmdline"
-            if proc.is_file():
-                command = proc.read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
-            else:
-                command = self.runner.run(["ps", "-p", str(pid), "-o", "command="], cwd=self.runtime_root, timeout=1).stdout
-            return "go" in command and "./cmd/mattermost" in command
-        except (OSError, subprocess.SubprocessError, LocalTargetError):
-            return False
+            result = self.runner.run(
+                [
+                    "docker", "run", "--rm", "--network", "none", "--read-only",
+                    "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                    "--tmpfs", "/tmp:rw,nosuid,nodev,size=16m", "--platform", ENTERPRISE_PLATFORM,
+                    "--entrypoint", "/mattermost/bin/mattermost", ENTERPRISE_IMAGE_REFERENCE, "version",
+                ],
+                cwd=self.root,
+                timeout=timeout,
+                env=self._docker_env(),
+            )
+        except (OSError, subprocess.SubprocessError):
+            raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED") from None
+        return self._validate_enterprise_version(result.stdout + "\n" + result.stderr)
 
-    def _process_marker(self, pid: int) -> str | None:
+    def _ensure_enterprise_image(self, progress: Callable[[str], None]) -> dict[str, str]:
+        metadata = self._inspect_enterprise_image(timeout=10, allow_missing=True)
+        if metadata is None:
+            progress("Local target: pulling exact Enterprise image")
+            try:
+                self.runner.run(
+                    ["docker", "pull", "--platform", ENTERPRISE_PLATFORM, ENTERPRISE_IMAGE_REFERENCE],
+                    cwd=self.root,
+                    timeout=1800,
+                    env=self._docker_env(),
+                )
+            except (OSError, subprocess.SubprocessError):
+                raise LocalTargetError("TARGET_START_FAILED") from None
+            self._inspect_enterprise_image(timeout=10, allow_missing=False)
+        progress("Local target: verifying Enterprise build")
+        return self._probe_enterprise_version()
+
+    def _running_services(self, *, timeout: float, passwords: dict[str, str] | None = None) -> set[str]:
+        result = self._compose(["ps", "--status", "running", "--services"], timeout=timeout, passwords=passwords)
+        services = set(result.stdout.split())
+        if not services <= {"postgres", "mattermost"}:
+            raise LocalTargetError("unsafe_local_runtime")
+        return services
+
+    def _verify_owned_mattermost_container(self, passwords: dict[str, str]) -> None:
+        container = self._compose(["ps", "-q", "mattermost"], timeout=5, passwords=passwords).stdout.split()
+        if len(container) != 1 or not re.fullmatch(r"[0-9a-f]{12,64}", container[0]):
+            raise LocalTargetError("TARGET_START_FAILED")
         try:
-            stat_file = Path("/proc") / str(pid) / "stat"
-            if stat_file.is_file():
-                fields = stat_file.read_text(encoding="utf-8").split()
-                return fields[21] if len(fields) > 21 else None
-            value = self.runner.run(["ps", "-p", str(pid), "-o", "lstart="], cwd=self.runtime_root, timeout=1).stdout.strip()
-            return value if 8 <= len(value) <= 128 else None
-        except (OSError, subprocess.SubprocessError, LocalTargetError):
-            return None
+            result = self.runner.run(
+                ["docker", "container", "inspect", container[0]],
+                cwd=self.root,
+                timeout=5,
+                env=self._docker_env(),
+            )
+            value = json.loads(result.stdout)
+            if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+                raise LocalTargetError("TARGET_START_FAILED")
+            config = value[0].get("Config")
+            labels = config.get("Labels") if isinstance(config, dict) else None
+            state = value[0].get("State")
+            if not isinstance(labels, dict) or labels.get("com.docker.compose.project") != COMPOSE_PROJECT:
+                raise LocalTargetError("TARGET_START_FAILED")
+            if labels.get("com.docker.compose.service") != "mattermost":
+                raise LocalTargetError("TARGET_START_FAILED")
+            if config.get("Image") != ENTERPRISE_IMAGE_REFERENCE:
+                raise LocalTargetError("IMAGE_MISMATCH")
+            if not isinstance(state, dict) or state.get("Running") is not True:
+                raise LocalTargetError("TARGET_START_FAILED")
+        except LocalTargetError:
+            raise
+        except (OSError, subprocess.SubprocessError, ValueError, TypeError, AttributeError):
+            raise LocalTargetError("TARGET_START_FAILED") from None
 
-    def _stop_dependencies(self) -> None:
+    def _stop_services(self) -> None:
         if self.compose_file.is_file() and shutil.which("docker"):
             try:
-                self._compose(["stop"], timeout=60)
+                self._compose(["stop", "mattermost", "postgres"], timeout=60)
             except LocalTargetError:
                 pass
 
-    def _stop_server(self) -> None:
-        pid = self._read_process()
-        if pid is None or not self._owned_process(pid):
-            return
-        try:
-            os.killpg(pid, signal.SIGTERM)
-            for _ in range(30):
-                if not self._owned_process(pid):
-                    return
-                self.sleep(0.5)
-            if self._owned_process(pid):
-                os.killpg(pid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            return
+    def _require_active_enterprise_runtime(self, passwords: dict[str, str]) -> None:
+        if shutil.which("docker") is None or not self.compose_file.is_file():
+            raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")
+        self._inspect_enterprise_image(timeout=10, allow_missing=False)
+        running = self._running_services(timeout=5, passwords=passwords)
+        if not {"mattermost", "postgres"} <= running:
+            raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")
+        self._verify_owned_mattermost_container(passwords)
+        self._probe_enterprise_version()
 
     def health(self, timeout: float = 2.0) -> dict[str, Any]:
         try:
@@ -365,20 +426,8 @@ class MattermostAdapter(LocalTargetAdapter):
 
     def up(self, progress: Callable[[str], None] = print) -> dict[str, Any]:
         self._require_source()
-        existing = self._read_process()
-        if existing and self._owned_process(existing):
-            if self.health()["healthy"]:
-                return self.status()
-            self._stop_server()
-        elif self.health(timeout=0.4)["healthy"]:
-            # Never adopt an unrelated service that happens to answer the fixed
-            # ping endpoint; only a PID/start-marker pair created by this harness
-            # can be reused or stopped.
-            raise LocalTargetError("TARGET_START_FAILED")
         if shutil.which("docker") is None:
             raise LocalTargetError("DOCKER_UNAVAILABLE")
-        if shutil.which("go") is None:
-            raise LocalTargetError("TARGET_START_FAILED")
         passwords = self._load_secrets(create=True)
         self._write_runtime_files(passwords)
         progress("Local target: validating Docker")
@@ -387,89 +436,87 @@ class MattermostAdapter(LocalTargetAdapter):
             self.runner.run(["docker", "compose", "version"], cwd=self.runtime_root, timeout=15, env=self._docker_env(passwords))
         except (OSError, subprocess.SubprocessError):
             raise LocalTargetError("DOCKER_UNAVAILABLE") from None
-        progress("Local target: starting PostgreSQL")
-        self._compose(["up", "-d", "--wait", "postgres"], timeout=180, passwords=passwords)
-        progress("Local target: building and starting Mattermost")
-        try:
-            process = subprocess.Popen(
-                ["go", "run", "./cmd/mattermost"],
-                cwd=self.server_root,
-                env=self._server_env(),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-                shell=False,
-            )
-            marker = self._process_marker(process.pid)
-            if not marker:
-                os.killpg(process.pid, signal.SIGTERM)
-                self._stop_dependencies()
+        version = self._ensure_enterprise_image(progress)
+        running = self._running_services(timeout=5, passwords=passwords)
+        if self.health(timeout=0.4)["healthy"]:
+            if "mattermost" not in running:
                 raise LocalTargetError("TARGET_START_FAILED")
-            atomic_private_json(self.process_file, {"pid": process.pid, "start_marker": marker,
-                                                    "started_at": _now(), "command": "mattermost_server"})
-        except LocalTargetError:
-            raise
-        except OSError:
-            self._stop_dependencies()
-            raise LocalTargetError("TARGET_START_FAILED") from None
+            if "postgres" not in running:
+                self._compose(["up", "-d", "--wait", "postgres"], timeout=180, passwords=passwords)
+            self._verify_owned_mattermost_container(passwords)
+            result = self.status()
+            result.update({"status": "healthy", "enterprise_ready": True, "image_version": version["version"]})
+            return result
+        if "mattermost" in running:
+            self._stop_services()
+        progress("Local target: starting PostgreSQL and Enterprise Mattermost")
+        self._compose(["up", "-d", "--wait", "postgres", "mattermost"], timeout=300, passwords=passwords)
         progress("Local target: waiting for health")
-        for _ in range(150):
-            if process.poll() is not None:
-                self._stop_dependencies()
-                raise LocalTargetError("TARGET_START_FAILED")
+        for attempt in range(150):
             if self.health(timeout=2)["healthy"]:
+                self._verify_owned_mattermost_container(passwords)
                 result = self.status()
-                result["status"] = "healthy"
+                result.update({"status": "healthy", "enterprise_ready": True, "image_version": version["version"]})
                 return result
+            if attempt % 5 == 4 and "mattermost" not in self._running_services(timeout=5, passwords=passwords):
+                self._stop_services()
+                raise LocalTargetError("TARGET_START_FAILED")
             self.sleep(2)
-        self._stop_server()
-        self._stop_dependencies()
+        self._stop_services()
         raise LocalTargetError("HEALTH_TIMEOUT")
 
     def stop(self) -> dict[str, Any]:
-        self._stop_server()
         if self.compose_file.is_file():
             if not shutil.which("docker"):
                 raise LocalTargetError("DOCKER_UNAVAILABLE")
-            self._compose(["stop"], timeout=60)
+            self._compose(["stop", "mattermost", "postgres"], timeout=60)
         return {"target": self.target_id, "status": "stopped", "data_preserved": True}
 
     def reset(self) -> dict[str, Any]:
-        self._stop_server()
         if self.compose_file.is_file():
             if not shutil.which("docker"):
                 raise LocalTargetError("DOCKER_UNAVAILABLE")
             self._compose(["down", "--volumes", "--remove-orphans"], timeout=120)
-        for path in (self.bootstrap_file, self.process_file, self.secrets_file, self.config_file):
+        legacy_files = (self.runtime_root / "process.json", self.runtime_root / "go.work", self.secret_root / "config.json")
+        for path in (self.bootstrap_file, self.secrets_file, *legacy_files):
             if path.is_file() and not path.is_symlink():
                 path.unlink()
-        data_root = self.runtime_root / "data"
-        if data_root.is_dir() and not data_root.is_symlink():
-            shutil.rmtree(data_root)
+        for data_root in (self.runtime_root / "data", self.runtime_root / "go-cache", self.runtime_root / "go-path"):
+            if data_root.is_dir() and not data_root.is_symlink():
+                shutil.rmtree(data_root)
         return {"target": self.target_id, "status": "reset", "synthetic_data_removed": True, "evidence_preserved": True, "source_preserved": True}
 
     def status(self) -> dict[str, Any]:
         source = self._source_details(0.4)
         health = self.health(timeout=0.4)
-        pid = self._read_process()
         bootstrap = _read_json(self.bootstrap_file)
-        dependency = "unknown"
+        image = None
+        mattermost_state = postgres_state = "not_configured"
+        if shutil.which("docker"):
+            try:
+                image = self._inspect_enterprise_image(timeout=0.4, allow_missing=True)
+            except LocalTargetError:
+                image = None
         if self.compose_file.is_file() and shutil.which("docker"):
             try:
-                result = self._compose(["ps", "--status", "running", "--services"], timeout=0.4)
-                dependency = "running" if "postgres" in result.stdout.split() else "stopped"
+                running = self._running_services(timeout=0.4)
+                mattermost_state = "running" if "mattermost" in running else "stopped"
+                postgres_state = "running" if "postgres" in running else "stopped"
             except LocalTargetError:
-                dependency = "unavailable"
+                mattermost_state = postgres_state = "unavailable"
         return {
             "target": self.target_id,
             "repository": self.repository,
             "expected_commit": self.pinned_revision,
             "actual_commit": source["actual_commit"],
             "source_status": source["source_status"],
+            "enterprise_image": ENTERPRISE_IMAGE,
+            "expected_image_digest": ENTERPRISE_IMAGE_DIGEST,
+            "image_digest": image["digest"] if image else None,
+            "image_platform": ENTERPRISE_PLATFORM,
+            "mattermost_container": mattermost_state,
+            "postgres_container": postgres_state,
             "health": health["status"],
-            "server_process": "running" if pid and self._owned_process(pid) else "stopped",
-            "dependency": dependency,
             "host_endpoint": "http://127.0.0.1:8065",
             "observer_endpoint": "http://host.docker.internal:8065",
             "observer_linux_mapping": "host-gateway",
@@ -579,6 +626,7 @@ class MattermostAdapter(LocalTargetAdapter):
         if not self.health()["healthy"]:
             raise LocalTargetError("BOOTSTRAP_FAILED")
         passwords = self._load_secrets(create=True)
+        self._require_active_enterprise_runtime(passwords)
         try:
             admin = self._login("system_admin", passwords)
             admin_user_response = admin.request("bootstrap", "GET", "/api/v4/users/username/" + _username("system_admin"), count=False)
@@ -851,6 +899,7 @@ class MattermostAdapter(LocalTargetAdapter):
             raise LocalTargetError("unknown_local_candidate")
         if not self.health()["healthy"]:
             raise LocalTargetError("VALIDATION_BLOCKED")
+        self._require_active_enterprise_runtime(self._load_secrets(create=False))
         selected = [candidate] if candidate else list(CANDIDATES)
         methods = {"S12": self._validate_s12, "S13": self._validate_s13, "S15": self._validate_s15}
         return [methods[value]() for value in selected]

@@ -70,14 +70,7 @@ def _print_mapping(result: dict) -> None:
 
 
 def _print_status(result: dict) -> None:
-    order = (
-        "target", "repository", "expected_commit", "actual_commit", "source_status", "health",
-        "server_process", "dependency", "host_endpoint", "observer_endpoint", "observer_linux_mapping",
-        "synthetic_bootstrap_status",
-    )
-    for key in order:
-        if key in result:
-            print(f"{_label(key)}: {_safe(result[key])}")
+    _print_mapping(result)
 
 
 def _print_validation(result: dict) -> None:
