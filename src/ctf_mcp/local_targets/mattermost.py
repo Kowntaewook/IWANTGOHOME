@@ -21,6 +21,9 @@ from .base import (
     LocalTargetError,
     LocalTargetManifest,
     atomic_private_json,
+    reject_active_git_extensions,
+    repository_origin_matches,
+    run_confined_git,
     secure_directory,
 )
 from .http import LocalMattermostClient, LocalResponse
@@ -92,7 +95,7 @@ volumes:
   mattermost-postgres-data: {{}}
 networks:
   local-target-internal:
-    driver: bridge
+    internal: true
 """
 
 
@@ -101,6 +104,7 @@ class MattermostAdapter(LocalTargetAdapter):
     repository = "https://github.com/mattermost/mattermost"
     pinned_revision = "d283cc6301368f6e3dc0fa6be0a1537a9677750b"
     host_health_url = "http://127.0.0.1:8065/api/v4/system/ping"
+    supported_candidates = frozenset(CANDIDATES)
 
     def __init__(
         self,
@@ -129,35 +133,15 @@ class MattermostAdapter(LocalTargetAdapter):
 
     # ----- source acquisition -------------------------------------------------
     def _git(self, argv: list[str], cwd: Path, timeout: float = 30) -> subprocess.CompletedProcess[str]:
-        resolved = cwd.resolve()
-        targets = self.targets_root.resolve()
-        if resolved != targets and targets not in resolved.parents:
-            raise LocalTargetError("unsafe_git_directory")
-        try:
-            env = dict(os.environ)
-            env.update({"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "GIT_TERMINAL_PROMPT": "0"})
-            return self.runner.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "credential.helper=", *argv],
-                                   cwd=resolved, timeout=timeout, env=env)
-        except (OSError, subprocess.SubprocessError):
-            raise LocalTargetError("SOURCE_ACQUIRE_FAILED") from None
+        return run_confined_git(self.runner, self.targets_root, argv, cwd=cwd, timeout=timeout)
 
     @staticmethod
     def _origin_matches(value: str) -> bool:
-        return value.strip().rstrip("/").removesuffix(".git") == MattermostAdapter.repository
+        return repository_origin_matches(value, MattermostAdapter.repository)
 
     @staticmethod
     def _reject_active_git_extensions(repository: Path) -> None:
-        config = repository / ".git" / "config"
-        try:
-            if config.is_symlink() or config.stat().st_size > 128 * 1024:
-                raise LocalTargetError("REPOSITORY_MISMATCH")
-            text = config.read_text(encoding="utf-8")
-        except LocalTargetError:
-            raise
-        except OSError:
-            raise LocalTargetError("REPOSITORY_MISMATCH") from None
-        if re.search(r"(?im)^\s*\[(?:filter|include|includeif)\b|^\s*(?:fsmonitor|hookspath|sshcommand|credential)\s*=", text):
-            raise LocalTargetError("REPOSITORY_MISMATCH")
+        reject_active_git_extensions(repository)
 
     def _source_details(self, timeout: float = 0.75) -> dict[str, Any]:
         git_dir = self.target_root / ".git"

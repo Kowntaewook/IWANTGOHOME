@@ -11,7 +11,7 @@ from typing import Sequence
 from ctf_mcp.local_targets import LocalTargetError, load_adapter
 
 
-ACTIONS = {"prepare", "up", "status", "bootstrap", "validate", "stop", "reset"}
+ACTIONS = {"prepare", "up", "status", "bootstrap", "validate", "hunt", "stop", "reset"}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -31,9 +31,10 @@ def run_local(root: Path, args: Sequence[str], env: dict[str, str] | None = None
         raise LocalTargetError("invalid_local_action") from None
     if options.action != "validate" and options.candidate is not None:
         raise LocalTargetError("invalid_local_action")
-    if options.action == "validate" and options.candidate is not None and options.candidate not in {"S12", "S13", "S15"}:
-        raise LocalTargetError("unknown_local_candidate")
     adapter = load_adapter(root, env.get("FINDER_TARGET"))
+    if (options.action == "validate" and options.candidate is not None
+            and options.candidate not in adapter.supported_candidates):
+        raise LocalTargetError("unknown_local_candidate")
     if options.action == "prepare":
         _print_mapping(adapter.prepare())
     elif options.action == "up":
@@ -45,6 +46,8 @@ def run_local(root: Path, args: Sequence[str], env: dict[str, str] | None = None
     elif options.action == "validate":
         for result in adapter.validate(options.candidate):
             _print_validation(result)
+    elif options.action == "hunt":
+        _print_hunt(adapter.hunt())
     elif options.action == "stop":
         _print_mapping(adapter.stop())
     elif options.action == "reset":
@@ -78,6 +81,22 @@ def _print_validation(result: dict) -> None:
                 "victim_state_changed", "status", "evidence", "reassessment", "request_count"):
         if key in result:
             print(f"{_label(key)}: {_safe(result[key])}")
+
+
+def _print_hunt(result: dict) -> None:
+    for key in (
+        "target", "version", "candidates_analyzed", "verified_locally",
+        "intended_behavior", "blocked", "needs_more_evidence",
+    ):
+        print(f"{_label(key)}: {_safe(result[key])}")
+    print("")
+    print("Root-cause clusters:")
+    for cluster in result["root_cause_clusters"]:
+        print(f"- {cluster['id']}: {', '.join(cluster['candidates'])}")
+    print("")
+    print(f"Reports: {result['reports']}")
+    print("")
+    print(f"Human action required: {result['human_action_required']}")
 
 
 def main() -> None:

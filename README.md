@@ -49,7 +49,7 @@ IWANTTOGOHOME perf compare
 
 개발 중에는 `IWANTTOGOHOME test fast`, 통합 경계는 `test integration`, 기존 전체 검증은 `test full`을 사용합니다. 역할별 tool schema는 필요할 때만 `FINDER_AGENT_ROLE=Scout|Triage|Portfolio|Investigator|Verifier|Reporter`로 제한하며, 이 필터는 승인·scope·session grant를 대신하지 않습니다. 자세한 측정법은 [Performance](docs/PERFORMANCE.md), 설계와 cache/model routing은 [Optimization](docs/OPTIMIZATION.md)을 참고하세요.
 
-허가된 self-hosted Mattermost pinned revision을 host에서 준비하고 localhost-only A/B validation을 실행할 수 있습니다.
+허가된 self-hosted Mattermost 또는 Gitea pinned revision을 host에서 준비하고 localhost-only validation을 실행할 수 있습니다.
 
 ```bash
 FINDER_TARGET=mattermost IWANTGOHOME local prepare
@@ -60,6 +60,22 @@ FINDER_TARGET=mattermost IWANTGOHOME local status
 FINDER_TARGET=mattermost IWANTGOHOME local stop
 ```
 
+Gitea는 공식 rootless 이미지와 SQLite로 한 서비스만 실행하며 G01/G02/G03 권한 control을 제공합니다.
+
+```bash
+FINDER_TARGET=gitea IWANTGOHOME local prepare
+FINDER_TARGET=gitea IWANTGOHOME local up
+FINDER_TARGET=gitea IWANTGOHOME local bootstrap
+FINDER_TARGET=gitea IWANTGOHOME local validate G01
+FINDER_TARGET=gitea IWANTGOHOME local validate G02
+FINDER_TARGET=gitea IWANTGOHOME local validate G03
+FINDER_TARGET=gitea IWANTGOHOME local status
+FINDER_TARGET=gitea IWANTGOHOME local stop
+FINDER_TARGET=gitea IWANTGOHOME local reset
+```
+
 Docker와 local process는 host CLI의 fixed action만 실행합니다. Codex/analysis 컨테이너에는 Docker socket이나 실행 tool이 추가되지 않습니다. 자세한 구조는 [Local Target Harness](docs/LOCAL_TARGETS.md), candidate 조건과 evidence 형식은 [Local Validation](docs/LOCAL_VALIDATION.md)을 참고하세요.
 
 Mattermost runtime은 `mattermostdevelopment/mattermost-enterprise-edition:d283cc6` (`linux/amd64`) digest-pinned image만 사용하며 host source-build fallback을 사용하지 않습니다. Delegated role bootstrap에는 유효한 Enterprise license 또는 공식 trial이 별도로 필요합니다.
+
+Gitea runtime은 `docker.gitea.com/gitea:1.27.3-rootless@sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2`만 사용하고 `127.0.0.1:13000`에만 publish합니다. SSH port는 publish하지 않습니다.

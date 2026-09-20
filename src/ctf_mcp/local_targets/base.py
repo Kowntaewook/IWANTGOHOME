@@ -62,6 +62,8 @@ class LocalTargetAdapter(ABC):
     target_id: str
     repository: str
     pinned_revision: str
+    host_health_url: str
+    supported_candidates: frozenset[str]
 
     @abstractmethod
     def prepare(self) -> dict[str, Any]: ...
@@ -86,6 +88,9 @@ class LocalTargetAdapter(ABC):
 
     @abstractmethod
     def status(self) -> dict[str, Any]: ...
+
+    def hunt(self) -> dict[str, Any]:
+        raise LocalTargetError("HUNT_UNAVAILABLE")
 
 
 def load_manifest(root: Path, target_id: str) -> LocalTargetManifest:
@@ -145,21 +150,81 @@ def atomic_private_json(path: Path, value: dict[str, Any]) -> None:
         temp.unlink(missing_ok=True)
 
 
+def run_confined_git(
+    runner: FixedCommandRunner,
+    targets_root: Path,
+    argv: Sequence[str],
+    *,
+    cwd: Path,
+    timeout: float = 30,
+) -> subprocess.CompletedProcess[str]:
+    """Run Git with extensions disabled inside the adapter-owned target root."""
+    resolved = cwd.resolve()
+    confined_root = targets_root.resolve()
+    if resolved != confined_root and confined_root not in resolved.parents:
+        raise LocalTargetError("unsafe_git_directory")
+    env = dict(os.environ)
+    env.update({
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+    })
+    try:
+        return runner.run(
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "credential.helper=", *argv],
+            cwd=resolved,
+            timeout=timeout,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise LocalTargetError("SOURCE_ACQUIRE_FAILED") from None
+
+
+def repository_origin_matches(value: str, expected: str) -> bool:
+    return value.strip().rstrip("/").removesuffix(".git") == expected
+
+
+def reject_active_git_extensions(repository: Path) -> None:
+    """Reject repository-local hooks, filters, includes, credentials, and SSH commands."""
+    config = repository / ".git" / "config"
+    try:
+        if config.is_symlink() or config.stat().st_size > 128 * 1024:
+            raise LocalTargetError("REPOSITORY_MISMATCH")
+        text = config.read_text(encoding="utf-8")
+    except LocalTargetError:
+        raise
+    except OSError:
+        raise LocalTargetError("REPOSITORY_MISMATCH") from None
+    if re.search(
+        r"(?im)^\s*\[(?:credential|filter|include|includeif)\b|"
+        r"^\s*(?:fsmonitor|hookspath|sshcommand|credential)\s*=",
+        text,
+    ):
+        raise LocalTargetError("REPOSITORY_MISMATCH")
+
+
 def load_adapter(
     root: Path,
     target_id: str | None,
     *,
     runner: FixedCommandRunner | None = None,
 ) -> LocalTargetAdapter:
-    if target_id != "mattermost":
+    if target_id not in {"mattermost", "gitea"}:
         raise LocalTargetError("invalid_local_target")
     manifest = load_manifest(root, target_id)
     # The manifest is metadata only. Code pins these values independently so a
     # changed JSON file can never redirect clone or network operations.
+    from .gitea import GiteaAdapter
     from .mattermost import MattermostAdapter
 
-    if (manifest.repository != MattermostAdapter.repository
-            or manifest.revision != MattermostAdapter.pinned_revision
-            or manifest.host_health_url != MattermostAdapter.host_health_url):
+    registry: dict[str, type[LocalTargetAdapter]] = {
+        "mattermost": MattermostAdapter,
+        "gitea": GiteaAdapter,
+    }
+    adapter_type = registry[target_id]
+    if (manifest.target_id != adapter_type.target_id
+            or manifest.repository != adapter_type.repository
+            or manifest.revision != adapter_type.pinned_revision
+            or manifest.host_health_url != adapter_type.host_health_url):
         raise LocalTargetError("invalid_local_target_manifest")
-    return MattermostAdapter(root, manifest, runner=runner)
+    return adapter_type(root, manifest, runner=runner)

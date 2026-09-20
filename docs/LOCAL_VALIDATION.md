@@ -1,6 +1,6 @@
 # Local Validation
 
-Local validation은 Mattermost pinned revision과 `FINDER_LOCAL_*` synthetic resource만 대상으로 한다. HTTP destination은 `127.0.0.1:8065`로 고정되고 각 candidate의 method/path 정규식 allowlist를 통과한 요청만 보낸다. 로그인 요청과 deterministic setup은 validation request budget에서 제외되지만 같은 localhost 제한을 적용한다.
+Local validation은 선택한 pinned target과 `finder-local-` synthetic resource만 대상으로 한다. Mattermost HTTP destination은 `127.0.0.1:8065`, Gitea는 `127.0.0.1:13000`으로 고정되고 각 adapter의 candidate별 method/path 정규식 allowlist를 통과한 요청만 보낸다. 로그인 요청과 deterministic setup은 validation request budget에서 제외되지만 같은 localhost 제한을 적용한다.
 
 ## Synthetic bootstrap
 
@@ -79,3 +79,45 @@ Delegated user가 resource를 읽지 못하고 single mutation이 거절되며 b
 Evidence에는 target/commit/candidate/source record, identity, role summary, method/path/expected/status code/response shape, marker boolean, request count, timestamp, session fingerprint만 저장한다. Raw response body, password, token, cookie, secret path는 저장하지 않는다.
 
 Reassessment 상태는 `VERIFIED_CANDIDATE`, `INTENDED_BEHAVIOR`, `FALSE_POSITIVE`, `NEEDS_MORE_EVIDENCE`, `BLOCKED_BY_LOCAL_SETUP` 중 하나이며 자동 `CONFIRMED`는 생성하지 않는다.
+
+## Gitea synthetic bootstrap
+
+Gitea bootstrap은 owned container에서 고정된 `gitea admin user create` argv를 사용해 다음 네 synthetic identity를 생성하거나 기존 항목을 인증해 재사용한다.
+
+```text
+finder-local-system-admin   site admin
+finder-local-repo-owner    normal user
+finder-local-collaborator  normal user
+finder-local-outsider      normal user
+```
+
+비밀번호는 `.operator/local-secrets/gitea/secrets.json`에만 0600으로 저장하고 상위 directory는 0700으로 유지한다. Bootstrap state와 evidence에는 password, Basic Authorization header, token을 기록하지 않는다.
+
+`finder-local-repo-owner/finder-local-private-repo` private repository를 만들고 description에도 `finder-local` marker를 둔다. Collaborator에는 read permission만 부여하고 outsider collaboration은 제거한다. 같은 bootstrap을 반복하면 기존 synthetic user/repository를 검증하고 재사용한다.
+
+## G01
+
+Budget은 1 request다. Membership이 없는 authenticated outsider가 아래 private repository metadata를 요청한다.
+
+```text
+GET /api/v1/repos/finder-local-repo-owner/finder-local-private-repo
+```
+
+401/403/404이면 `INTENDED_BEHAVIOR`다. Exact synthetic private repository가 200으로 반환되고 owner가 확인한 outsider membership이 없을 때만 실제 unexpected authorization으로 `VERIFIED_CANDIDATE`가 될 수 있다.
+
+## G02
+
+Budget은 1 request다. Owner API로 read collaboration을 먼저 확인한 뒤 collaborator가 같은 metadata endpoint를 요청한다. Exact synthetic repository가 200으로 반환되면 `INTENDED_BEHAVIOR`, 그 외에는 `NEEDS_MORE_EVIDENCE`다.
+
+## G03
+
+Budget은 1 request다. Read collaborator가 owner/admin 권한이 필요한 repository edit endpoint에 빈 JSON object를 보낸다.
+
+```text
+PATCH /api/v1/repos/finder-local-repo-owner/finder-local-private-repo
+{}
+```
+
+빈 patch는 field를 변경하거나 repository를 삭제하지 않는다. 401/403/404이면 `INTENDED_BEHAVIOR`다. Exact repository가 200으로 반환될 때만 unexpected authorization으로 `VERIFIED_CANDIDATE`가 될 수 있다.
+
+Gitea evidence는 identity, fixed method/path, expected result, status code, response shape, exact synthetic repository marker boolean, request count와 assessment만 저장한다. Raw response body와 credential은 저장하지 않는다.
