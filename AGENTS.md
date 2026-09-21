@@ -27,10 +27,3 @@ and obtain a narrower user-selected input; do not silently ignore the limit.
 For implementation work, run the tests appropriate to the modified boundary.
 Document exactly which commands ran. Syntax/lint checks are distinct from parser,
 MCP, browser, Docker, account authentication and model-selection evaluations.
-
-
-Runtime skills are Codex-local trusted instructions under `/etc/codex/skills`.
-Do not use analysis `read_source_context` to read Codex skill files. Analysis
-file tools are restricted to the authorized target input mounted at `/inputs`.
-Use Codex skill discovery for `/etc/codex/skills`; inability to expose those
-files through analysis is not a missing target artifact or authorization error.

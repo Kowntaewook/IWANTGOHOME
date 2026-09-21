@@ -305,6 +305,7 @@ def run_full_hunt(
     pinned_digest: str,
     duplicate_client: Any | None = None,
     retest_provider: Callable[[dict[str, Any]], list[dict[str, Any]]] | None = None,
+    local_adapter: Any | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any]:
     """Compatibility entrypoint backed by the target-neutral engine."""
@@ -321,6 +322,7 @@ def run_full_hunt(
         pinned_digest=pinned_digest,
         duplicate_client=duplicate_client or PublicResearchClient(),
         retest_provider=retest_provider,
+        local_adapter=local_adapter,
     )
     return FullHuntEngine(adapter).run(root=root, run_id=run_id)
 

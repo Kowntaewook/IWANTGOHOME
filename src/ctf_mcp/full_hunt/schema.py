@@ -9,7 +9,10 @@ from typing import Any, Protocol, runtime_checkable
 from ctf_mcp.local_targets.base import LocalTargetError
 
 
-STATIC_STATUSES = frozenset({"REJECTED_STATIC", "NEEDS_LOCAL_VALIDATION", "BLOCKED_STATIC"})
+STATIC_STATUSES = frozenset({
+    "REJECTED_STATIC", "NEEDS_LOCAL_VALIDATION", "BLOCKED_STATIC",
+    "NEEDS_MANUAL_SCENARIO",
+})
 LOCAL_STATUSES = frozenset({
     "VERIFIED_LOCAL", "INTENDED_BEHAVIOR", "BLOCKED_BY_LOCAL_SETUP", "NEEDS_MORE_EVIDENCE",
 })
@@ -135,6 +138,7 @@ def normalized_outcome(
     duplicate_research: dict[str, Any] | None,
     version_matrix: dict[str, Any] | None,
     classification: str,
+    scenario_synthesis: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if classification not in CLASSIFICATIONS:
         raise LocalTargetError("invalid_hunt_classification")
@@ -162,6 +166,7 @@ def normalized_outcome(
         "duplicate_research": duplicate_research,
         "version_matrix": version_matrix,
         "classification": classification,
+        "scenario_synthesis": scenario_synthesis,
         "evidence": candidate.get("evidence", []),
         "provenance": candidate.get("provenance", {}),
     }

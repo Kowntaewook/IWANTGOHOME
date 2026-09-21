@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ctf_mcp.full_hunt.schema import DuplicateQuery, RuntimeRequest, SourceIdentity
-from ctf_mcp.full_hunt.registry import FullHuntRegistry
+from ctf_mcp.full_hunt.registry import FULL_HUNT_REGISTRY
+from ctf_mcp.full_hunt.scenario import TargetCapabilities, not_generatable
 
 from .base import LocalTargetError
 from .gitea_discovery import discover_and_triage, generate_scenario
+from .gitea_scenario_bindings import GiteaScenarioBindings
 from .gitea_full_hunt import (
     ALL_DUPLICATE_SOURCES,
     _affected_version_summary,
@@ -42,6 +44,7 @@ class GiteaFullHuntTargetAdapter:
         pinned_digest: str,
         duplicate_client: Any,
         retest_provider: Callable[[dict[str, Any]], list[dict[str, Any]]] | None,
+        local_adapter: Any | None = None,
     ):
         self.source_root = source_root
         self.ensure_source_callback = ensure_source
@@ -51,12 +54,18 @@ class GiteaFullHuntTargetAdapter:
         self.pinned_digest = pinned_digest
         self.duplicate_client = duplicate_client
         self.retest_provider = retest_provider
+        self.local_adapter = local_adapter
         self.bootstrapped = False
         self.local_results: list[dict[str, Any]] = []
         self.local_by_id: dict[str, dict[str, Any]] = {}
         self.legacy_outcomes: list[dict[str, Any]] = []
         self.legacy_clusters: list[dict[str, Any]] = []
         self.artifacts: dict[str, Any] = {}
+        self.candidates_by_id: dict[str, dict[str, Any]] = {}
+        self.binding_adapter = GiteaScenarioBindings(
+            local_adapter,
+            lambda candidate_id: self.candidates_by_id.get(candidate_id),
+        )
 
     def resolve_source(self) -> SourceIdentity:
         self.ensure_source_callback()
@@ -69,7 +78,9 @@ class GiteaFullHuntTargetAdapter:
     def discover_candidates(self, source: SourceIdentity) -> list[dict[str, Any]]:
         if source.directory != self.source_root:
             raise LocalTargetError("SOURCE_ACQUIRE_FAILED")
-        return discover_and_triage(self.source_root)
+        candidates = discover_and_triage(self.source_root)
+        self.candidates_by_id = {item["candidate_id"]: item for item in candidates}
+        return candidates
 
     @staticmethod
     def static_triage(candidate: dict[str, Any]) -> dict[str, Any]:
@@ -98,6 +109,48 @@ class GiteaFullHuntTargetAdapter:
         if request.kind != "pinned" or request.candidate_id != candidate["candidate_id"]:
             raise LocalTargetError("VALIDATION_BLOCKED")
         return self.local_by_id.get(candidate.get("baseline_candidate"))
+
+    @staticmethod
+    def scenario_capabilities() -> TargetCapabilities:
+        return TargetCapabilities(
+            fixture_actions=frozenset({
+                "create_identity", "create_public_resource", "create_private_resource",
+                "add_member", "remove_member", "create_private_content",
+                "resolve_route", "read_owned_fixture",
+            }),
+            supports_read_only_probe=True,
+        )
+
+    @staticmethod
+    def should_synthesize_scenario(candidate: dict[str, Any]) -> bool:
+        return (
+            candidate["static_status"] != "REJECTED_STATIC"
+            and generate_scenario(candidate)["status"] == "NEEDS_MANUAL_SCENARIO"
+        )
+
+    def synthesize_scenario(
+        self, candidate: dict[str, Any], capabilities: TargetCapabilities,
+    ) -> dict[str, Any]:
+        del capabilities
+        # Generic discovery candidates do not carry a reviewed mapping from
+        # arbitrary route placeholders to the fixed synthetic fixture.  Refuse
+        # to invent one; the five baseline-backed candidates use the existing
+        # fixed validators through validate_candidate instead.
+        return not_generatable(
+            candidate["candidate_id"], self.target_id,
+            "no_reviewed_fixture_route_mapping",
+        )
+
+    def scenario_bindings(self):
+        return self.binding_adapter.bindings()
+
+    def check_scenario_fixtures(self, plan):
+        return self.binding_adapter.check(plan)
+
+    def execute_scenario(self, plan, request: RuntimeRequest):
+        if request.kind != "pinned" or request.candidate_id != plan.candidate_id:
+            raise LocalTargetError("VALIDATION_BLOCKED")
+        return self.binding_adapter.execute(plan)
 
     @staticmethod
     def duplicate_queries(candidate: dict[str, Any]) -> list[DuplicateQuery]:
@@ -161,6 +214,22 @@ class GiteaFullHuntTargetAdapter:
             local_validation,
             duplicate_research,
             version_matrix,
+        )
+
+    @staticmethod
+    def classify_with_scenario(
+        candidate: dict[str, Any],
+        local_validation: dict[str, Any] | None,
+        duplicate_research: dict[str, Any] | None,
+        version_matrix: dict[str, Any] | None,
+        scenario_synthesis: dict[str, Any] | None,
+    ) -> str:
+        scenario = generate_scenario(candidate)
+        if (scenario_synthesis and scenario_synthesis.get("status") == "SCENARIO_EXECUTED"
+                and local_validation is not None):
+            scenario = {"status": "LOCAL_BASELINE_REUSE"}
+        return final_classification(
+            candidate, scenario, local_validation, duplicate_research, version_matrix,
         )
 
     def enrich_outcome(self, outcome: dict[str, Any]) -> dict[str, Any]:
@@ -254,5 +323,5 @@ class GiteaFullHuntTargetAdapter:
         }
 
 
-GITEA_FULL_HUNT_REGISTRY = FullHuntRegistry()
+GITEA_FULL_HUNT_REGISTRY = FULL_HUNT_REGISTRY
 GITEA_FULL_HUNT_REGISTRY.register("gitea", GiteaFullHuntTargetAdapter)

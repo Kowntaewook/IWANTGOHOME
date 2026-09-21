@@ -1,6 +1,6 @@
 # Local Validation
 
-Local validation은 선택한 pinned target과 `finder-local-` synthetic resource만 대상으로 한다. Mattermost HTTP destination은 `127.0.0.1:8065`, Gitea는 `127.0.0.1:13000`으로 고정되고 각 adapter의 candidate별 method/path 정규식 allowlist를 통과한 요청만 보낸다. 로그인 요청과 deterministic setup은 validation request budget에서 제외되지만 같은 localhost 제한을 적용한다.
+Local validation은 선택한 pinned target과 `finder-local-` synthetic resource만 대상으로 한다. Mattermost HTTP destination은 고정 TCP sidecar가 publish하는 `127.0.0.1:13100`, Gitea는 `127.0.0.1:13000`으로 고정되고 각 adapter의 candidate별 method/path 정규식 allowlist를 통과한 요청만 보낸다. Mattermost와 PostgreSQL은 internal-only network에 남고 sidecar config는 `mattermost:8065` 외 upstream을 허용하지 않는다. 로그인 요청과 deterministic setup은 validation request budget에서 제외되지만 같은 localhost 제한을 적용한다.
 
 ## Synthetic bootstrap
 
@@ -22,20 +22,20 @@ DM victim <-> normal_user
 
 비밀번호는 host에서 무작위 생성해 `.operator/local-secrets/mattermost/`에만 저장한다. API login body와 process memory 외에는 전달하지 않으며 stdout, command argv, immutable evidence에 저장하지 않는다. session token도 memory에만 있고 evidence에는 SHA-256 기반 16자리 `session_fingerprint`만 남는다.
 
-Delegated role은 Mattermost의 built-in `system_user_manager`를 공식 role API로 조회·patch·assign한다. 검증 전 다음 조건을 모두 확인한다.
+Delegated role은 Mattermost의 built-in `system_user_manager`를 공식 role API로 조회하고 그대로 assign한다. Global role을 patch하거나 다른 role로 대체하지 않는다. 조회 응답은 HTTP 200, exact role name, 유효한 role ID, `manage_system` 부재와 다음 최소 권한을 모두 확인한다.
 
 ```text
-system_admin == false
-edit_other_users == true
-view_team == true
-manage_system == false
-read_channel_content == false
-target_channel_member == false
+edit_other_users
+view_team
+sysconsole_read_user_management_users
+sysconsole_write_user_management_users
 ```
 
-지원되는 API로 이 조합을 만들 수 없으면 bootstrap은 `ROLE_UNAVAILABLE`로 종료하고 각 candidate에 `BLOCKED_BY_LOCAL_SETUP`, `reason=required_supported_role_not_constructible` immutable reassessment를 추가한다. DB를 직접 수정하지 않는다.
+Delegated user에는 roles 문자열 `system_user system_user_manager`를 정확히 assign한다. 이어서 user body에 두 role만 있는지 확인하고 delegated session으로 다른 fixture user를 GET해 권한이 실제 적용됐는지 검사한다. `system_admin`은 대체 role로 사용하지 않으며 DB를 직접 수정하지 않는다.
 
-Enterprise runtime 검증과 license entitlement는 별개다. `local up`은 Enterprise-ready build만 인정하지만, delegated role bootstrap은 유효한 Enterprise/Enterprise Advanced license 또는 공식 trial이 적용되지 않으면 `ROLE_UNAVAILABLE`로 중단한다.
+Role capability를 사용할 수 없으면 일반 user/team/channel/post fixture 생성은 계속하고 bootstrap state를 `PARTIAL`로 저장한다. Capability에는 `ROLE_LOOKUP_FAILED`, `ROLE_TOO_PRIVILEGED`, `REQUIRED_ROLE_PERMISSIONS_MISSING`, `ROLE_ASSIGNMENT_FAILED`, `ROLE_ASSIGNMENT_NOT_EFFECTIVE` 중 하나를 기록한다. S12/S13처럼 이 capability에 의존하는 candidate만 해당 reason의 `BLOCKED_BY_LOCAL_SETUP` 결과를 만든다. Capability가 준비되면 bootstrap state는 `READY`다.
+
+Enterprise runtime 검증과 license entitlement는 별개다. `local up`은 Enterprise-ready build만 인정한다. License나 runtime 설정 때문에 built-in role을 조회·사용할 수 없으면 delegated capability만 unavailable 상태로 남는다.
 
 ## S12
 
@@ -174,6 +174,16 @@ findings/RCxx.json
 poc/RCxx.py
 duplicate-research.json
 version-matrix.json
+scenarios/<candidate-id>.json
+scenarios/<candidate-id>.md
 ```
 
 `NEW_SECURITY_CANDIDATE`는 deterministic local reproduction, 성공한 control, 유지된 route/handler/query source assertions, minimum core duplicate coverage, 공개 일치 없음, latest stable의 `AFFECTED` 결과와 report evidence가 모두 있는 경우에만 사용한다. `research_incomplete`인 supplementary 결과나 `NO_PUBLIC_DUPLICATE_FOUND` 자체는 novelty confirmation이 아니다. Vendor-confirmed vulnerability를 뜻하지 않으며 외부 제출은 수행하지 않는다.
+
+## Automatic scenario synthesis
+
+Core의 `ScenarioPlan`은 identity/resource 요구사항, fixture capability, control/probe request, invariant, 기대 control, violation 조건, request budget, source assertion과 cleanup 조건만 표현한다. HTTP path와 target object mapping은 adapter가 제공한다. Source fact가 부족하면 `SCENARIO_NOT_GENERATABLE`, capability나 runtime이 없으면 `SCENARIO_BLOCKED`, safety rule을 어기면 `SCENARIO_UNSAFE`이며 기존 `NEEDS_MANUAL_SCENARIO` 분류를 유지한다.
+
+자동 실행은 loopback HTTP, `finder-local-*` fixture, adapter가 확인한 runtime ownership, GET/HEAD, 최대 12 requests만 허용한다. 외부 URL, redirect, credential이 포함된 URL, validation 단계의 mutation, arbitrary command, 무제한 pagination은 실행 전에 차단한다. Control 실패, status code만 있는 관찰, empty/404 단독 판정, source/fixture mismatch, 모호한 probe와 evidence 저장 실패는 `VERIFIED_LOCAL`을 만들 수 없다. Count나 visibility 후보도 adapter가 body와 direct-access baseline을 함께 제공해야 한다.
+
+Report의 `scenarios/<candidate-id>.json`과 `.md`에는 생성 근거, source assertion, fixture 요구사항, 정제된 control/probe, budget, safety/execution 결과와 blocker가 저장된다. Password, token, cookie, authorization 값과 session 값은 redaction 후 저장한다. Console은 generated, executed, blocked, manual remaining을 별도로 출력하며 기존 `Needs manual scenario` 합계도 유지한다.

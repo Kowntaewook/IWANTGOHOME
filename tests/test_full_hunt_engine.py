@@ -8,6 +8,7 @@ from ctf_mcp.full_hunt.engine import FullHuntEngine
 from ctf_mcp.full_hunt.registry import FullHuntRegistry
 from ctf_mcp.full_hunt.reporting import ReportWriter
 from ctf_mcp.full_hunt.runtime import IsolatedRuntimeLifecycle
+from ctf_mcp.full_hunt.scenario import ScenarioPlan, TargetCapabilities
 from ctf_mcp.full_hunt.schema import (
     DuplicateQuery,
     RuntimeRequest,
@@ -181,6 +182,75 @@ def test_generic_fake_target_runs_entire_pipeline_without_product_code(tmp_path)
     } <= set(first)
     assert "must-never-reach-report" not in (tmp_path / result["json_report"]).read_text()
     assert report["external_submission_performed"] is False
+
+
+def test_generic_fake_target_runs_scenario_before_duplicate_and_retest(tmp_path):
+    class ScenarioTarget(FakeTarget):
+        def discover_candidates(self, source):
+            self.events.append("discover_candidates")
+            return [{
+                "candidate_id": "FX-003", "static_status": "NEEDS_MANUAL_SCENARIO",
+                "root_cause_key": "parser/scenario", "evidence": ["source:20"],
+                "provenance": {"revision": source.revision},
+            }]
+
+        @staticmethod
+        def scenario_capabilities():
+            return TargetCapabilities(
+                fixture_actions=frozenset({"create_identity", "resolve_route"}),
+                supports_read_only_probe=True,
+            )
+
+        @staticmethod
+        def synthesize_scenario(candidate, capabilities):
+            return ScenarioPlan(
+                candidate_id=candidate["candidate_id"], target_id="fake",
+                required_identities=("finder-local-owner", "finder-local-viewer"),
+                required_resources=("finder-local-resource",),
+                fixture_requirements=("create_identity", "resolve_route"),
+                control_request={"method": "GET", "url": "http://127.0.0.1:14000/control",
+                                 "purpose": "control", "read_only": True},
+                probe_request={"method": "GET", "url": "http://127.0.0.1:14000/probe",
+                               "purpose": "probe", "read_only": True},
+                security_invariant="restricted fixture remains hidden",
+                expected_control={"visible": True}, violation_condition={"visible": True},
+                request_budget=2, cleanup_requirements=("bootstrap_owned",),
+                source_assertions={"route": True, "auth_path": True},
+                confidence="high", safety_classification="LOCAL_READ_ONLY",
+                rationale="source route and authorization path are deterministic",
+            )
+
+        def check_scenario_fixtures(self, scenario):
+            self.events.append("scenario_fixture_check")
+            return {"available": True}
+
+        def execute_scenario(self, scenario, request):
+            self.events.append("scenario_execute")
+            return {
+                "request_count": 2,
+                "final_urls": [scenario.control_request["url"], scenario.probe_request["url"]],
+                "fixture_valid": True, "source_assertion_valid": True,
+                "control_passed": True, "response_status_only": False,
+                "probe_deterministic": True, "ambiguous": False,
+                "invariant_violated": True, "evidence_saved": True,
+                "evidence": "scenario-evidence",
+            }
+
+        @classmethod
+        def classify_with_scenario(cls, candidate, local, duplicate, matrix, scenario):
+            assert scenario["status"] == "SCENARIO_EXECUTED"
+            return cls.classify(
+                {**candidate, "static_status": "NEEDS_LOCAL_VALIDATION"},
+                local, duplicate, matrix,
+            )
+
+    target = ScenarioTarget()
+    result = FullHuntEngine(target).run(root=tmp_path, run_id="fake-scenario-run")
+    assert result["outcomes"][0]["classification"] == "NEW_SECURITY_CANDIDATE"
+    assert result["outcomes"][0]["scenario_synthesis"]["status"] == "SCENARIO_EXECUTED"
+    assert target.events.index("scenario_execute") < target.events.index("duplicate_research:FX-003")
+    assert result["scenario_generated"] == result["scenario_executed"] == 1
+    assert result["scenario_manual_remaining"] == 0
 
 
 def test_generic_core_contains_no_product_specific_vocabulary():

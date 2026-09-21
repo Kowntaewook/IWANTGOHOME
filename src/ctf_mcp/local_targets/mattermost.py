@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -39,11 +40,52 @@ CANDIDATES = {
     "S15": "67695a713fc9486eafc96d41f8b3e6f6",
 }
 REQUEST_BUDGETS = {"S12": 8, "S13": 5, "S15": 5}
+REQUIRED_DELEGATED_PERMISSIONS = frozenset({
+    "edit_other_users",
+    "view_team",
+    "sysconsole_read_user_management_users",
+    "sysconsole_write_user_management_users",
+})
+FORBIDDEN_DELEGATED_PERMISSIONS = frozenset({"manage_system"})
+DELEGATED_CAPABILITY_REASONS = frozenset({
+    "ROLE_LOOKUP_FAILED",
+    "ROLE_TOO_PRIVILEGED",
+    "REQUIRED_ROLE_PERMISSIONS_MISSING",
+    "ROLE_ASSIGNMENT_FAILED",
+    "ROLE_ASSIGNMENT_NOT_EFFECTIVE",
+    "ROLE_LICENSE_UNAVAILABLE",
+})
 ENTERPRISE_IMAGE = "mattermostdevelopment/mattermost-enterprise-edition:d283cc6"
 ENTERPRISE_IMAGE_DIGEST = "sha256:3c11c93b5f75b4e9bc407711d6ad345c0072cff520e34ffc0e99238a507daeb1"
 ENTERPRISE_IMAGE_REFERENCE = ENTERPRISE_IMAGE + "@" + ENTERPRISE_IMAGE_DIGEST
 ENTERPRISE_PLATFORM = "linux/amd64"
+PROXY_IMAGE = "haproxy:3.2.23-alpine3.24"
+PROXY_IMAGE_DIGEST = "sha256:37372c5ade6fc5cfb3a0c1a3dc0f77da472fce80ee8aa1294ed78af67179a3f2"
+PROXY_IMAGE_REFERENCE = PROXY_IMAGE + "@" + PROXY_IMAGE_DIGEST
+PROXY_PLATFORM = "linux/amd64"
+MATTERMOST_HOST_PORT = 13100
+MATTERMOST_CONTAINER_PORT = 8065
+PROXY_CONTAINER_PORT = 13100
 COMPOSE_PROJECT = "iwantgohome-local-mattermost"
+INTERNAL_NETWORK = COMPOSE_PROJECT + "_local-target-internal"
+PUBLISHED_NETWORK = COMPOSE_PROJECT + "_local-target-published"
+PROXY_CONFIG = f"""global
+  maxconn 64
+
+defaults
+  mode tcp
+  timeout connect 5s
+  timeout client 30s
+  timeout server 30s
+
+frontend finder_local_mattermost
+  bind :{PROXY_CONTAINER_PORT}
+  default_backend fixed_mattermost
+
+backend fixed_mattermost
+  server mattermost mattermost:{MATTERMOST_CONTAINER_PORT} check
+"""
+LEGACY_DIRECT_COMPOSE_SHA256 = "793e479d8c3913108af21af3ac852bbb487f080d7f3575790c3631980283776c"
 COMPOSE = f"""name: iwantgohome-local-mattermost
 services:
   postgres:
@@ -54,8 +96,6 @@ services:
       POSTGRES_PASSWORD: ${{FINDER_LOCAL_DB_PASSWORD:?local database password required}}
       POSTGRES_DB: mattermost_test
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
-    ports:
-      - 127.0.0.1:55432:5432
     volumes:
       - mattermost-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -75,7 +115,7 @@ services:
     environment:
       MM_SQLSETTINGS_DRIVERNAME: postgres
       MM_SQLSETTINGS_DATASOURCE: "postgres://mmuser:${{FINDER_LOCAL_DB_PASSWORD:?local database password required}}@postgres:5432/mattermost_test?sslmode=disable&connect_timeout=10"
-      MM_SERVICESETTINGS_SITEURL: http://127.0.0.1:8065
+      MM_SERVICESETTINGS_SITEURL: http://127.0.0.1:{MATTERMOST_HOST_PORT}
       MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
       MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
       MM_TEAMSETTINGS_ENABLEOPENSERVER: "true"
@@ -85,17 +125,34 @@ services:
       MM_FILESETTINGS_DIRECTORY: /mattermost/data
       MM_LOGSETTINGS_ENABLECONSOLE: "true"
       MM_LOGSETTINGS_ENABLEFILE: "false"
-    ports:
-      - 127.0.0.1:8065:8065
     volumes:
       - ./data:/mattermost/data
     networks: [local-target-internal]
+    security_opt: [no-new-privileges:true]
+  proxy:
+    image: {PROXY_IMAGE_REFERENCE}
+    platform: {PROXY_PLATFORM}
+    restart: "no"
+    user: haproxy
+    depends_on:
+      mattermost:
+        condition: service_started
+    command: [haproxy, -f, /usr/local/etc/haproxy/haproxy.cfg]
+    ports:
+      - 127.0.0.1:{MATTERMOST_HOST_PORT}:{PROXY_CONTAINER_PORT}
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks: [local-target-internal, local-target-published]
+    read_only: true
+    cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 volumes:
   mattermost-postgres-data: {{}}
 networks:
   local-target-internal:
     internal: true
+  local-target-published:
+    driver: bridge
 """
 
 
@@ -103,7 +160,7 @@ class MattermostAdapter(LocalTargetAdapter):
     target_id = "mattermost"
     repository = "https://github.com/mattermost/mattermost"
     pinned_revision = "d283cc6301368f6e3dc0fa6be0a1537a9677750b"
-    host_health_url = "http://127.0.0.1:8065/api/v4/system/ping"
+    host_health_url = f"http://127.0.0.1:{MATTERMOST_HOST_PORT}/api/v4/system/ping"
     supported_candidates = frozenset(CANDIDATES)
 
     def __init__(
@@ -128,6 +185,7 @@ class MattermostAdapter(LocalTargetAdapter):
         self.secret_root = self.operator / "local-secrets" / self.target_id
         self.evidence_root = self.operator / "local-evidence" / self.target_id
         self.compose_file = self.runtime_root / "compose.yaml"
+        self.proxy_config_file = self.runtime_root / "haproxy.cfg"
         self.bootstrap_file = self.runtime_root / "bootstrap.json"
         self.secrets_file = self.secret_root / "secrets.json"
 
@@ -232,7 +290,20 @@ class MattermostAdapter(LocalTargetAdapter):
         if not self.compose_file.exists():
             self.compose_file.write_text(COMPOSE, encoding="utf-8")
             os.chmod(self.compose_file, 0o600)
-        elif self.compose_file.is_symlink() or self.compose_file.read_text(encoding="utf-8") != COMPOSE:
+        elif self.compose_file.is_symlink():
+            raise LocalTargetError("unsafe_local_runtime")
+        else:
+            current_compose = self.compose_file.read_text(encoding="utf-8")
+            if hashlib.sha256(current_compose.encode()).hexdigest() == LEGACY_DIRECT_COMPOSE_SHA256:
+                self.compose_file.write_text(COMPOSE, encoding="utf-8")
+                os.chmod(self.compose_file, 0o600)
+            elif current_compose != COMPOSE:
+                raise LocalTargetError("unsafe_local_runtime")
+        if not self.proxy_config_file.exists():
+            self.proxy_config_file.write_text(PROXY_CONFIG, encoding="utf-8")
+            os.chmod(self.proxy_config_file, 0o644)
+        elif (self.proxy_config_file.is_symlink()
+              or self.proxy_config_file.read_text(encoding="utf-8") != PROXY_CONFIG):
             raise LocalTargetError("unsafe_local_runtime")
         # The parent remains 0700 host-only. The mounted leaf must be writable by
         # the image's fixed non-root user on both Docker Desktop and Linux.
@@ -250,6 +321,11 @@ class MattermostAdapter(LocalTargetAdapter):
             if self.compose_file.stat().st_size != len(COMPOSE.encode("utf-8")):
                 raise LocalTargetError("unsafe_local_runtime")
             if self.compose_file.read_text(encoding="utf-8") != COMPOSE:
+                raise LocalTargetError("unsafe_local_runtime")
+            if (self.proxy_config_file.is_symlink()
+                    or not self.proxy_config_file.is_file()
+                    or self.proxy_config_file.stat().st_size != len(PROXY_CONFIG.encode("utf-8"))
+                    or self.proxy_config_file.read_text(encoding="utf-8") != PROXY_CONFIG):
                 raise LocalTargetError("unsafe_local_runtime")
         except LocalTargetError:
             raise
@@ -292,6 +368,34 @@ class MattermostAdapter(LocalTargetAdapter):
             if allow_missing:
                 return None
             raise LocalTargetError("IMAGE_MISMATCH") from None
+
+    def _inspect_proxy_image(self, *, timeout: float, allow_missing: bool) -> dict[str, str] | None:
+        try:
+            result = self.runner.run(
+                ["docker", "image", "inspect", PROXY_IMAGE_REFERENCE],
+                cwd=self.root,
+                timeout=timeout,
+                env=self._docker_env(),
+            )
+            value = json.loads(result.stdout)
+            if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+                raise LocalTargetError("PROXY_IMAGE_MISMATCH")
+            metadata = value[0]
+            digests = metadata.get("RepoDigests")
+            if metadata.get("Os") != "linux" or metadata.get("Architecture") != "amd64":
+                raise LocalTargetError("PROXY_IMAGE_MISMATCH")
+            if not isinstance(digests, list) or not any(
+                isinstance(item, str) and item.endswith("@" + PROXY_IMAGE_DIGEST)
+                for item in digests
+            ):
+                raise LocalTargetError("PROXY_IMAGE_MISMATCH")
+            return {"digest": PROXY_IMAGE_DIGEST, "platform": PROXY_PLATFORM}
+        except LocalTargetError:
+            raise
+        except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+            if allow_missing:
+                return None
+            raise LocalTargetError("PROXY_IMAGE_MISMATCH") from None
 
     @staticmethod
     def _validate_enterprise_version(output: str) -> dict[str, str]:
@@ -346,15 +450,40 @@ class MattermostAdapter(LocalTargetAdapter):
         progress("Local target: verifying Enterprise build")
         return self._probe_enterprise_version()
 
+    def _ensure_proxy_image(self, progress: Callable[[str], None]) -> dict[str, str]:
+        metadata = self._inspect_proxy_image(timeout=10, allow_missing=True)
+        if metadata is None:
+            progress("Local target: pulling exact localhost proxy image")
+            try:
+                self.runner.run(
+                    ["docker", "pull", "--platform", PROXY_PLATFORM, PROXY_IMAGE_REFERENCE],
+                    cwd=self.root,
+                    timeout=1800,
+                    env=self._docker_env(),
+                )
+            except (OSError, subprocess.SubprocessError):
+                raise LocalTargetError("TARGET_START_FAILED") from None
+            metadata = self._inspect_proxy_image(timeout=10, allow_missing=False)
+        return metadata
+
     def _running_services(self, *, timeout: float, passwords: dict[str, str] | None = None) -> set[str]:
         result = self._compose(["ps", "--status", "running", "--services"], timeout=timeout, passwords=passwords)
         services = set(result.stdout.split())
-        if not services <= {"postgres", "mattermost"}:
+        if not services <= {"postgres", "mattermost", "proxy"}:
             raise LocalTargetError("unsafe_local_runtime")
         return services
 
-    def _verify_owned_mattermost_container(self, passwords: dict[str, str]) -> None:
-        container = self._compose(["ps", "-q", "mattermost"], timeout=5, passwords=passwords).stdout.split()
+    def _inspect_owned_container(
+        self,
+        service: str,
+        image: str,
+        networks: set[str],
+        port_bindings: dict[str, list[dict[str, str]]] | None,
+        passwords: dict[str, str],
+        *,
+        hardened_proxy: bool = False,
+    ) -> None:
+        container = self._compose(["ps", "-q", service], timeout=5, passwords=passwords).stdout.split()
         if len(container) != 1 or not re.fullmatch(r"[0-9a-f]{12,64}", container[0]):
             raise LocalTargetError("TARGET_START_FAILED")
         try:
@@ -370,23 +499,57 @@ class MattermostAdapter(LocalTargetAdapter):
             config = value[0].get("Config")
             labels = config.get("Labels") if isinstance(config, dict) else None
             state = value[0].get("State")
+            host_config = value[0].get("HostConfig")
+            actual_bindings = host_config.get("PortBindings") if isinstance(host_config, dict) else None
+            attached = value[0].get("NetworkSettings", {}).get("Networks")
             if not isinstance(labels, dict) or labels.get("com.docker.compose.project") != COMPOSE_PROJECT:
                 raise LocalTargetError("TARGET_START_FAILED")
-            if labels.get("com.docker.compose.service") != "mattermost":
+            if labels.get("com.docker.compose.service") != service:
                 raise LocalTargetError("TARGET_START_FAILED")
-            if config.get("Image") != ENTERPRISE_IMAGE_REFERENCE:
-                raise LocalTargetError("IMAGE_MISMATCH")
+            if config.get("Image") != image:
+                code = "PROXY_IMAGE_MISMATCH" if service == "proxy" else "IMAGE_MISMATCH"
+                raise LocalTargetError(code)
+            if (not isinstance(attached, dict) or set(attached) != networks
+                    or (port_bindings is None and actual_bindings not in (None, {}))
+                    or (port_bindings is not None and actual_bindings != port_bindings)):
+                raise LocalTargetError("TARGET_START_FAILED")
             if not isinstance(state, dict) or state.get("Running") is not True:
+                raise LocalTargetError("TARGET_START_FAILED")
+            if hardened_proxy and (
+                host_config.get("Privileged") is not False
+                or host_config.get("ReadonlyRootfs") is not True
+                or host_config.get("NetworkMode") == "host"
+                or "ALL" not in (host_config.get("CapDrop") or [])
+            ):
                 raise LocalTargetError("TARGET_START_FAILED")
         except LocalTargetError:
             raise
         except (OSError, subprocess.SubprocessError, ValueError, TypeError, AttributeError):
             raise LocalTargetError("TARGET_START_FAILED") from None
 
+    def _verify_owned_mattermost_container(self, passwords: dict[str, str]) -> None:
+        self._inspect_owned_container(
+            "mattermost", ENTERPRISE_IMAGE_REFERENCE, {INTERNAL_NETWORK}, None, passwords,
+        )
+
+    def _verify_owned_runtime_containers(self, passwords: dict[str, str]) -> None:
+        self._inspect_owned_container("postgres", "postgres:15", {INTERNAL_NETWORK}, None, passwords)
+        self._verify_owned_mattermost_container(passwords)
+        self._inspect_owned_container(
+            "proxy",
+            PROXY_IMAGE_REFERENCE,
+            {INTERNAL_NETWORK, PUBLISHED_NETWORK},
+            {f"{PROXY_CONTAINER_PORT}/tcp": [{
+                "HostIp": "127.0.0.1", "HostPort": str(MATTERMOST_HOST_PORT),
+            }]},
+            passwords,
+            hardened_proxy=True,
+        )
+
     def _stop_services(self) -> None:
         if self.compose_file.is_file() and shutil.which("docker"):
             try:
-                self._compose(["stop", "mattermost", "postgres"], timeout=60)
+                self._compose(["stop", "proxy", "mattermost", "postgres"], timeout=60)
             except LocalTargetError:
                 pass
 
@@ -394,10 +557,11 @@ class MattermostAdapter(LocalTargetAdapter):
         if shutil.which("docker") is None or not self.compose_file.is_file():
             raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")
         self._inspect_enterprise_image(timeout=10, allow_missing=False)
+        self._inspect_proxy_image(timeout=10, allow_missing=False)
         running = self._running_services(timeout=5, passwords=passwords)
-        if not {"mattermost", "postgres"} <= running:
+        if not {"mattermost", "postgres", "proxy"} <= running:
             raise LocalTargetError("ENTERPRISE_RUNTIME_REQUIRED")
-        self._verify_owned_mattermost_container(passwords)
+        self._verify_owned_runtime_containers(passwords)
         self._probe_enterprise_version()
 
     def health(self, timeout: float = 2.0) -> dict[str, Any]:
@@ -421,28 +585,33 @@ class MattermostAdapter(LocalTargetAdapter):
         except (OSError, subprocess.SubprocessError):
             raise LocalTargetError("DOCKER_UNAVAILABLE") from None
         version = self._ensure_enterprise_image(progress)
+        self._ensure_proxy_image(progress)
         running = self._running_services(timeout=5, passwords=passwords)
         if self.health(timeout=0.4)["healthy"]:
-            if "mattermost" not in running:
+            if not {"postgres", "mattermost", "proxy"} <= running:
                 raise LocalTargetError("TARGET_START_FAILED")
-            if "postgres" not in running:
-                self._compose(["up", "-d", "--wait", "postgres"], timeout=180, passwords=passwords)
-            self._verify_owned_mattermost_container(passwords)
+            self._verify_owned_runtime_containers(passwords)
             result = self.status()
             result.update({"status": "healthy", "enterprise_ready": True, "image_version": version["version"]})
             return result
-        if "mattermost" in running:
+        if running:
             self._stop_services()
-        progress("Local target: starting PostgreSQL and Enterprise Mattermost")
-        self._compose(["up", "-d", "--wait", "postgres", "mattermost"], timeout=300, passwords=passwords)
-        progress("Local target: waiting for health")
+        progress("Local target: starting PostgreSQL, Enterprise Mattermost, and localhost proxy")
+        self._compose(
+            ["up", "-d", "--wait", "postgres", "mattermost", "proxy"],
+            timeout=300,
+            passwords=passwords,
+        )
+        progress("Local target: waiting for proxy health")
         for attempt in range(150):
             if self.health(timeout=2)["healthy"]:
-                self._verify_owned_mattermost_container(passwords)
+                self._verify_owned_runtime_containers(passwords)
                 result = self.status()
                 result.update({"status": "healthy", "enterprise_ready": True, "image_version": version["version"]})
                 return result
-            if attempt % 5 == 4 and "mattermost" not in self._running_services(timeout=5, passwords=passwords):
+            if (attempt % 5 == 4
+                    and not {"postgres", "mattermost", "proxy"}
+                    <= self._running_services(timeout=5, passwords=passwords)):
                 self._stop_services()
                 raise LocalTargetError("TARGET_START_FAILED")
             self.sleep(2)
@@ -453,7 +622,7 @@ class MattermostAdapter(LocalTargetAdapter):
         if self.compose_file.is_file():
             if not shutil.which("docker"):
                 raise LocalTargetError("DOCKER_UNAVAILABLE")
-            self._compose(["stop", "mattermost", "postgres"], timeout=60)
+            self._compose(["stop", "proxy", "mattermost", "postgres"], timeout=60)
         return {"target": self.target_id, "status": "stopped", "data_preserved": True}
 
     def reset(self) -> dict[str, Any]:
@@ -474,20 +643,25 @@ class MattermostAdapter(LocalTargetAdapter):
         source = self._source_details(0.4)
         health = self.health(timeout=0.4)
         bootstrap = _read_json(self.bootstrap_file)
-        image = None
-        mattermost_state = postgres_state = "not_configured"
+        image = proxy_image = None
+        mattermost_state = postgres_state = proxy_state = "not_configured"
         if shutil.which("docker"):
             try:
                 image = self._inspect_enterprise_image(timeout=0.4, allow_missing=True)
             except LocalTargetError:
                 image = None
+            try:
+                proxy_image = self._inspect_proxy_image(timeout=0.4, allow_missing=True)
+            except LocalTargetError:
+                proxy_image = None
         if self.compose_file.is_file() and shutil.which("docker"):
             try:
                 running = self._running_services(timeout=0.4)
                 mattermost_state = "running" if "mattermost" in running else "stopped"
                 postgres_state = "running" if "postgres" in running else "stopped"
+                proxy_state = "running" if "proxy" in running else "stopped"
             except LocalTargetError:
-                mattermost_state = postgres_state = "unavailable"
+                mattermost_state = postgres_state = proxy_state = "unavailable"
         return {
             "target": self.target_id,
             "repository": self.repository,
@@ -498,13 +672,17 @@ class MattermostAdapter(LocalTargetAdapter):
             "expected_image_digest": ENTERPRISE_IMAGE_DIGEST,
             "image_digest": image["digest"] if image else None,
             "image_platform": ENTERPRISE_PLATFORM,
+            "proxy_image": PROXY_IMAGE,
+            "expected_proxy_image_digest": PROXY_IMAGE_DIGEST,
+            "proxy_image_digest": proxy_image["digest"] if proxy_image else None,
             "mattermost_container": mattermost_state,
             "postgres_container": postgres_state,
+            "local_proxy_container": proxy_state,
             "health": health["status"],
-            "host_endpoint": "http://127.0.0.1:8065",
-            "observer_endpoint": "http://host.docker.internal:8065",
+            "host_endpoint": f"http://127.0.0.1:{MATTERMOST_HOST_PORT}",
+            "observer_endpoint": f"http://host.docker.internal:{MATTERMOST_HOST_PORT}",
             "observer_linux_mapping": "host-gateway",
-            "synthetic_bootstrap_status": "ready" if _valid_bootstrap_state(bootstrap) else "not_ready",
+            "synthetic_bootstrap_status": _bootstrap_state_status(bootstrap),
         }
 
     # ----- synthetic bootstrap ------------------------------------------------
@@ -572,38 +750,126 @@ class MattermostAdapter(LocalTargetAdapter):
         if response.status not in {200, 201, 400}:
             raise LocalTargetError("BOOTSTRAP_FAILED")
 
-    def _configure_delegated_role(self, admin: LocalMattermostClient, user_id: str) -> dict[str, bool]:
-        role_response = admin.request("bootstrap", "GET", "/api/v4/roles/name/system_user_manager", count=False)
-        if role_response.status != 200 or not isinstance(role_response.data, dict):
-            raise LocalTargetError("ROLE_UNAVAILABLE")
+    @staticmethod
+    def _unavailable_delegated_capability(
+        reason: str, permissions: set[str] | None = None,
+    ) -> dict[str, Any]:
+        actual = permissions or set()
+        return {
+            "status": "unavailable",
+            "reason": reason,
+            "required_permissions": sorted(REQUIRED_DELEGATED_PERMISSIONS),
+            "role_summary": {
+                "system_admin": False,
+                "edit_other_users": "edit_other_users" in actual,
+                "view_team": "view_team" in actual,
+                "manage_system": "manage_system" in actual,
+                "read_channel_content": "read_channel_content" in actual,
+                "target_channel_member": False,
+            },
+            "assignment_verified": False,
+            "effective_control_verified": False,
+        }
+
+    def _configure_delegated_role(
+        self,
+        admin: LocalMattermostClient,
+        user_id: str,
+        control_user_id: str,
+        passwords: dict[str, str],
+    ) -> dict[str, Any]:
+        try:
+            role_response = admin.request(
+                "bootstrap", "GET", "/api/v4/roles/name/system_user_manager",
+                count=False,
+            )
+        except LocalTargetError:
+            return self._unavailable_delegated_capability("ROLE_LOOKUP_FAILED")
+        if (role_response.status != 200 or not isinstance(role_response.data, dict)
+                or role_response.data.get("name") != "system_user_manager"):
+            return self._unavailable_delegated_capability("ROLE_LOOKUP_FAILED")
         role = role_response.data
-        role_id = _id(role.get("id"))
-        permissions = set(value for value in role.get("permissions", []) if isinstance(value, str))
-        permissions.update({"edit_other_users", "view_team", "sysconsole_read_user_management_users", "sysconsole_write_user_management_users"})
-        if "manage_system" in permissions:
-            raise LocalTargetError("ROLE_UNAVAILABLE")
-        patched = admin.request("bootstrap", "PUT", f"/api/v4/roles/{role_id}/patch", {
-            "permissions": sorted(permissions),
-        }, count=False)
-        if patched.status != 200 or not isinstance(patched.data, dict):
-            raise LocalTargetError("ROLE_UNAVAILABLE")
-        actual = set(patched.data.get("permissions", []))
-        assigned = admin.request("bootstrap", "PUT", f"/api/v4/users/{user_id}/roles", {
-            "roles": "system_user system_user_manager",
-        }, count=False)
+        try:
+            _id(role.get("id"))
+        except LocalTargetError:
+            return self._unavailable_delegated_capability("ROLE_LOOKUP_FAILED")
+        raw_permissions = role.get("permissions")
+        if not isinstance(raw_permissions, list) or not all(
+            isinstance(value, str) for value in raw_permissions
+        ):
+            return self._unavailable_delegated_capability("ROLE_LOOKUP_FAILED")
+        permissions = set(raw_permissions)
+        if permissions & FORBIDDEN_DELEGATED_PERMISSIONS:
+            return self._unavailable_delegated_capability("ROLE_TOO_PRIVILEGED", permissions)
+        if not REQUIRED_DELEGATED_PERMISSIONS <= permissions:
+            return self._unavailable_delegated_capability(
+                "REQUIRED_ROLE_PERMISSIONS_MISSING", permissions,
+            )
+        try:
+            assigned = admin.request(
+                "bootstrap", "PUT", f"/api/v4/users/{user_id}/roles",
+                {"roles": "system_user system_user_manager"}, count=False,
+            )
+        except LocalTargetError:
+            return self._unavailable_delegated_capability(
+                "ROLE_ASSIGNMENT_FAILED", permissions,
+            )
         if assigned.status != 200:
-            raise LocalTargetError("ROLE_UNAVAILABLE")
+            if (
+                assigned.status == 400
+                and isinstance(assigned.data, dict)
+                and assigned.data.get("id") == "api.user.update_user_roles.license.app_error"
+            ):
+                return self._unavailable_delegated_capability("ROLE_LICENSE_UNAVAILABLE", permissions)
+            return self._unavailable_delegated_capability("ROLE_ASSIGNMENT_FAILED", permissions)
+        try:
+            verified = admin.request(
+                "bootstrap", "GET", f"/api/v4/users/{user_id}", count=False,
+            )
+        except LocalTargetError:
+            return self._unavailable_delegated_capability(
+                "ROLE_ASSIGNMENT_NOT_EFFECTIVE", permissions,
+            )
+        verified_roles = (
+            set(str(verified.data.get("roles", "")).split())
+            if verified.status == 200 and isinstance(verified.data, dict)
+            and verified.data.get("id") == user_id
+            else set()
+        )
+        if verified_roles != {"system_user", "system_user_manager"}:
+            return self._unavailable_delegated_capability(
+                "ROLE_ASSIGNMENT_NOT_EFFECTIVE", permissions,
+            )
+        try:
+            delegated = self._login("delegated_admin", passwords)
+            effective = delegated.request(
+                "bootstrap", "GET", f"/api/v4/users/{control_user_id}", count=False,
+            )
+        except LocalTargetError:
+            return self._unavailable_delegated_capability(
+                "ROLE_ASSIGNMENT_NOT_EFFECTIVE", permissions,
+            )
+        if (effective.status != 200 or not isinstance(effective.data, dict)
+                or effective.data.get("id") != control_user_id):
+            return self._unavailable_delegated_capability(
+                "ROLE_ASSIGNMENT_NOT_EFFECTIVE", permissions,
+            )
         summary = {
             "system_admin": False,
-            "edit_other_users": "edit_other_users" in actual,
-            "view_team": "view_team" in actual,
-            "manage_system": "manage_system" in actual,
-            "read_channel_content": "read_channel_content" in actual,
+            "edit_other_users": "edit_other_users" in permissions,
+            "view_team": "view_team" in permissions,
+            "manage_system": "manage_system" in permissions,
+            "read_channel_content": "read_channel_content" in permissions,
             "target_channel_member": False,
         }
-        if not summary["edit_other_users"] or not summary["view_team"] or summary["manage_system"] or summary["read_channel_content"]:
-            raise LocalTargetError("ROLE_UNAVAILABLE")
-        return summary
+        return {
+            "status": "ready",
+            "reason": None,
+            "required_permissions": sorted(REQUIRED_DELEGATED_PERMISSIONS),
+            "role_summary": summary,
+            "assignment_verified": True,
+            "effective_control_verified": True,
+        }
 
     def bootstrap(self) -> dict[str, Any]:
         self._require_source()
@@ -624,12 +890,13 @@ class MattermostAdapter(LocalTargetAdapter):
         for identity in ("delegated_admin", "victim", "normal_user"):
             users[identity] = self._get_or_create_user(admin, identity, passwords)
         user_ids = {name: _id(value.get("id")) for name, value in users.items()}
-        try:
-            role_summary = self._configure_delegated_role(admin, user_ids["delegated_admin"])
-        except LocalTargetError as error:
-            if error.code == "ROLE_UNAVAILABLE":
-                self._record_blocked_setup()
-            raise
+        delegated_capability = self._configure_delegated_role(
+            admin,
+            user_ids["delegated_admin"],
+            user_ids["victim"],
+            passwords,
+        )
+        role_summary = delegated_capability["role_summary"]
         team = self._get_or_create_team(admin)
         team_id = _id(team.get("id"))
         for user_id in user_ids.values():
@@ -678,55 +945,84 @@ class MattermostAdapter(LocalTargetAdapter):
             "dm_thread_id": dm_thread_id,
             "thread_id": thread_id,
             "role_summary": role_summary,
+            "bootstrap_status": (
+                "READY" if delegated_capability["status"] == "ready" else "PARTIAL"
+            ),
+            "capabilities": {"delegated_user_manager": delegated_capability},
             "updated_at": _now(),
         }
         atomic_private_json(self.bootstrap_file, state)
         return {
             "target": self.target_id,
-            "status": "ready",
+            "status": "ready" if delegated_capability["status"] == "ready" else "partial",
+            "bootstrap_status": state["bootstrap_status"],
             "identities": ["system_admin", "delegated_admin", "victim", "normal_user"],
             "resources": ["team_a", "private_channel_a", "private_channel_b", "dm_victim_normal_user"],
             "role_summary": role_summary,
+            "capabilities": state["capabilities"],
         }
 
-    def _record_blocked_setup(self) -> None:
+    def _save_blocked_validation(self, candidate: str, reason: str) -> dict[str, Any]:
         secure_directory(self.evidence_root)
         records = Records(self.evidence_root)
-        for candidate, source_record in CANDIDATES.items():
-            evidence = records.save("local_validation", {
-                "target": self.target_id,
-                "target_commit": self.pinned_revision,
-                "candidate_id": candidate,
-                "source_candidate_record": source_record,
-                "identity": "delegated_admin",
-                "authenticated": False,
-                "role_summary": {"system_admin": False},
-                "requests": [],
-                "synthetic_marker_present": False,
-                "request_count": 0,
-                "assessment": "BLOCKED_BY_LOCAL_SETUP",
-                "details": {"reason": "required_supported_role_not_constructible"},
-            })
-            records.save("candidate_reassessment", {
-                "target": self.target_id,
-                "target_commit": self.pinned_revision,
-                "candidate_id": candidate,
-                "source_candidate_record": source_record,
-                "local_validation_evidence_id": evidence["id"],
-                "review_status": "BLOCKED_BY_LOCAL_SETUP",
-                "automatic_confirmation": False,
-            })
+        evidence = records.save("local_validation", {
+            "target": self.target_id,
+            "target_commit": self.pinned_revision,
+            "candidate_id": candidate,
+            "source_candidate_record": CANDIDATES[candidate],
+            "identity": "delegated_admin",
+            "authenticated": False,
+            "role_summary": {"system_admin": False},
+            "requests": [],
+            "synthetic_marker_present": False,
+            "request_count": 0,
+            "assessment": "BLOCKED_BY_LOCAL_SETUP",
+            "details": {
+                "capability": "delegated_user_manager",
+                "reason": reason,
+            },
+        })
+        reassessment = records.save("candidate_reassessment", {
+            "target": self.target_id,
+            "target_commit": self.pinned_revision,
+            "candidate_id": candidate,
+            "source_candidate_record": CANDIDATES[candidate],
+            "local_validation_evidence_id": evidence["id"],
+            "review_status": "BLOCKED_BY_LOCAL_SETUP",
+            "automatic_confirmation": False,
+        })
+        return {
+            "target": self.target_id,
+            "candidate": candidate,
+            "status": "BLOCKED_BY_LOCAL_SETUP",
+            "blocked_reason": reason,
+            "capability": "delegated_user_manager",
+            "evidence": evidence["id"],
+            "reassessment": reassessment["id"],
+            "request_count": 0,
+        }
 
     # ----- candidate validators ----------------------------------------------
-    def _validation_context(self) -> tuple[dict[str, Any], dict[str, str], LocalMattermostClient]:
+    def _validation_context(
+        self, candidate: str,
+    ) -> tuple[dict[str, Any], dict[str, str], LocalMattermostClient]:
         state = _read_json(self.bootstrap_file)
         if not _valid_bootstrap_state(state):
             raise LocalTargetError("VALIDATION_BLOCKED")
+        capability = state["capabilities"]["delegated_user_manager"]
+        if capability["status"] != "ready":
+            reason = capability.get("reason")
+            raise LocalTargetError(
+                reason if reason in DELEGATED_CAPABILITY_REASONS
+                else "ROLE_ASSIGNMENT_NOT_EFFECTIVE"
+            )
         passwords = self._load_secrets(create=False)
         client = self._login("delegated_admin", passwords)
         role = state["role_summary"]
-        if role.get("system_admin") or not role.get("edit_other_users") or not role.get("view_team") or role.get("manage_system") or role.get("read_channel_content") or role.get("target_channel_member"):
-            raise LocalTargetError("ROLE_UNAVAILABLE")
+        if (role.get("system_admin") or not role.get("edit_other_users")
+                or not role.get("view_team") or role.get("manage_system")
+                or role.get("target_channel_member")):
+            raise LocalTargetError("ROLE_ASSIGNMENT_NOT_EFFECTIVE")
         return state, passwords, client
 
     @staticmethod
@@ -773,15 +1069,24 @@ class MattermostAdapter(LocalTargetAdapter):
         }
 
     def _validate_s12(self) -> dict[str, Any]:
-        state, _, client = self._validation_context()
+        state, passwords, client = self._validation_context("S12")
         victim, team, thread = state["users"]["victim"], state["team_a"], state["thread_id"]
         single_path = f"/api/v4/users/{victim}/teams/{team}/threads/{thread}"
         bulk_path = f"/api/v4/users/{victim}/teams/{team}/threads?per_page=100&extended=true"
+        permitted = self._login("victim", passwords)
+        control_single = permitted.request("S12", "GET", single_path)
+        control_bulk = permitted.request("S12", "GET", bulk_path)
         single = client.request("S12", "GET", single_path)
         bulk = client.request("S12", "GET", bulk_path)
-        marker = _contains_message(bulk.data, SYNTHETIC_MESSAGE)
+        control_fixture = (
+            control_single.status == 200
+            and control_bulk.status == 200
+            and _contains_message(control_single.data, SYNTHETIC_MESSAGE)
+            and _contains_message(control_bulk.data, SYNTHETIC_MESSAGE)
+        )
+        marker = bulk.status == 200 and _contains_message(bulk.data, SYNTHETIC_MESSAGE)
         role = dict(state["role_summary"])
-        private_verified = single.status in {401, 403, 404} and bulk.status == 200 and marker
+        private_verified = control_fixture and single.status in {401, 403, 404} and marker
         dm_control = None
         dm_marker = False
         if private_verified:
@@ -790,15 +1095,21 @@ class MattermostAdapter(LocalTargetAdapter):
             dm_marker = _contains_message(bulk.data, SYNTHETIC_DM_MESSAGE)
         status = "VERIFIED_CANDIDATE" if private_verified else "NEEDS_MORE_EVIDENCE"
         requests = [
-            self._request_summary("GET", single_path, "deny", single),
-            self._request_summary("GET", bulk_path, "success_with_synthetic_marker", bulk),
+            self._request_summary("GET", single_path, "permitted_control_with_synthetic_marker", control_single),
+            self._request_summary("GET", bulk_path, "permitted_control_with_synthetic_marker", control_bulk),
+            self._request_summary("GET", single_path, "delegated_probe_denied", single),
+            self._request_summary("GET", bulk_path, "delegated_probe_omits_synthetic_marker", bulk),
         ]
         if dm_control is not None:
             requests.append(self._request_summary("GET", dm_path, "deny_dm_variant", dm_control))
-        return self._save_validation("S12", status, requests, marker, client.request_count, {
+        count = permitted.request_count + client.request_count
+        return self._save_validation("S12", status, requests, marker, count, {
             "role_summary": role,
             "session_fingerprint": client.session_fingerprint,
-            "control": "DENIED" if single.status in {401, 403, 404} else str(single.status),
+            "control": control_single.status,
+            "control_collection": control_bulk.status,
+            "control_fixture_verified": control_fixture,
+            "probe_direct": single.status,
             "bulk": bulk.status,
             "synthetic_marker_returned": marker,
             "dm_variant_control_denied": dm_control is not None and dm_control.status in {401, 403, 404},
@@ -806,32 +1117,41 @@ class MattermostAdapter(LocalTargetAdapter):
         })
 
     def _validate_s13(self) -> dict[str, Any]:
-        state, _, client = self._validation_context()
+        state, passwords, client = self._validation_context("S13")
         victim, team = state["users"]["victim"], state["team_a"]
         control_path = f"/api/v4/users/{victim}/teams/{team}/channels/members?page=0&per_page=100"
         candidate_path = f"/api/v4/users/{victim}/channel_members?page=0&per_page=100"
-        control = client.request("S13", "GET", control_path)
+        permitted = self._login("victim", passwords)
+        control = permitted.request("S13", "GET", control_path)
         candidate = client.request("S13", "GET", candidate_path)
         comparison = _membership_comparison(control.data, candidate.data)
-        marker = state["private_channel_a"] in comparison["candidate_channel_ids"]
+        protected_channel = state["private_channel_a"]
+        control_fixture = (
+            control.status == 200
+            and protected_channel in comparison["control_channel_ids"]
+        )
+        marker = candidate.status == 200 and protected_channel in comparison["candidate_channel_ids"]
         # The pinned handler explicitly authorizes this endpoint with edit_other_users
         # and sanitizes each member for the requester, so success is documented
         # delegated behavior rather than an automatic vulnerability confirmation.
-        status = "INTENDED_BEHAVIOR" if candidate.status == 200 else "NEEDS_MORE_EVIDENCE"
+        status = "INTENDED_BEHAVIOR" if control_fixture and marker else "NEEDS_MORE_EVIDENCE"
         requests = [
-            self._request_summary("GET", control_path, "comparison_control", control),
-            self._request_summary("GET", candidate_path, "documented_edit_other_users_behavior", candidate),
+            self._request_summary("GET", control_path, "permitted_control_with_private_channel", control),
+            self._request_summary("GET", candidate_path, "delegated_probe_with_sanitized_private_channel", candidate),
         ]
-        return self._save_validation("S13", status, requests, marker, client.request_count, {
+        count = permitted.request_count + client.request_count
+        return self._save_validation("S13", status, requests, marker, count, {
             "role_summary": dict(state["role_summary"]),
             "session_fingerprint": client.session_fingerprint,
             "control": control.status,
+            "control_fixture_verified": control_fixture,
             "candidate_result": candidate.status,
+            "synthetic_marker_returned": marker,
             "comparison": comparison,
         })
 
     def _validate_s15(self) -> dict[str, Any]:
-        state, passwords, client = self._validation_context()
+        state, passwords, client = self._validation_context("S15")
         victim, team, thread = state["users"]["victim"], state["team_a"], state["thread_id"]
         normal = self._login("normal_user", passwords)
         # This reply is deterministic setup and is excluded from the A/B budget.
@@ -881,12 +1201,40 @@ class MattermostAdapter(LocalTargetAdapter):
     def validate(self, candidate: str | None = None) -> list[dict[str, Any]]:
         if candidate is not None and candidate not in CANDIDATES:
             raise LocalTargetError("unknown_local_candidate")
+        self._require_source()
         if not self.health()["healthy"]:
             raise LocalTargetError("VALIDATION_BLOCKED")
         self._require_active_enterprise_runtime(self._load_secrets(create=False))
         selected = [candidate] if candidate else list(CANDIDATES)
         methods = {"S12": self._validate_s12, "S13": self._validate_s13, "S15": self._validate_s15}
-        return [methods[value]() for value in selected]
+        results = []
+        for value in selected:
+            try:
+                results.append(methods[value]())
+            except LocalTargetError as error:
+                if error.code not in DELEGATED_CAPABILITY_REASONS:
+                    raise
+                results.append(self._save_blocked_validation(value, error.code))
+        return results
+
+    def full_hunt(self) -> dict[str, Any]:
+        from ctf_mcp.full_hunt.engine import FullHuntEngine
+        from .mattermost_hunt_adapter import (
+            MATTERMOST_FULL_HUNT_REGISTRY,
+            MattermostPublicResearchClient,
+        )
+        from .mattermost_main_retest import MattermostMainRetest
+
+        main_retest = MattermostMainRetest(self.root, runner=self.runner)
+
+        adapter = MATTERMOST_FULL_HUNT_REGISTRY.create(
+            "mattermost", local_adapter=self,
+            duplicate_client=MattermostPublicResearchClient(),
+            retest_provider=lambda candidate: (
+                [main_retest.retest(candidate)] if main_retest.supports(candidate) else []
+            ),
+        )
+        return FullHuntEngine(adapter).run(root=self.root)
 
 
 def _password() -> str:
@@ -921,6 +1269,7 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 def _valid_bootstrap_state(value: dict[str, Any] | None) -> bool:
     try:
+        capability = value["capabilities"]["delegated_user_manager"] if value else None
         return bool(
             value
             and value.get("marker") == "FINDER_LOCAL_BOOTSTRAP_V1"
@@ -929,9 +1278,33 @@ def _valid_bootstrap_state(value: dict[str, Any] | None) -> bool:
             and all(MATTERMOST_ID.fullmatch(item) for item in value["users"].values())
             and all(MATTERMOST_ID.fullmatch(value[key]) for key in
                     ("team_a", "private_channel_a", "private_channel_b", "dm_victim_normal_user", "thread_id", "dm_thread_id"))
+            and value.get("bootstrap_status") in {"READY", "PARTIAL"}
+            and isinstance(capability, dict)
+            and capability.get("required_permissions")
+            == sorted(REQUIRED_DELEGATED_PERMISSIONS)
+            and value.get("role_summary") == capability.get("role_summary")
+            and capability.get("status") in {"ready", "unavailable"}
+            and (
+                value.get("bootstrap_status") == "READY"
+                and capability.get("status") == "ready"
+                and capability.get("reason") is None
+                and capability.get("assignment_verified") is True
+                and capability.get("effective_control_verified") is True
+                or capability.get("status") == "unavailable"
+                and value.get("bootstrap_status") == "PARTIAL"
+                and capability.get("reason") in DELEGATED_CAPABILITY_REASONS
+                and capability.get("assignment_verified") is False
+                and capability.get("effective_control_verified") is False
+            )
         )
     except (TypeError, KeyError):
         return False
+
+
+def _bootstrap_state_status(value: dict[str, Any] | None) -> str:
+    if not _valid_bootstrap_state(value):
+        return "not_ready"
+    return "ready" if value.get("bootstrap_status") == "READY" else "partial"
 
 
 def _contains_message(value: Any, marker: str) -> bool:

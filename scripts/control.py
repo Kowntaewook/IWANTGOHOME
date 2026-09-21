@@ -23,46 +23,10 @@ def operator_file(value):
 
 
 def prepare_operator_dirs():
-    for name in (
-        ".operator",
-        ".operator/grants",
-        ".operator/programs",
-        ".operator/inputs",
-        ".operator/inputs/default",
-    ):
+    for name in (".operator", ".operator/grants", ".operator/programs"):
         path = ROOT / name
-        if path.is_symlink():
-            raise ValueError("Operator directories must not be symlinks")
+        if path.is_symlink():raise ValueError("Operator directories must not be symlinks")
         path.mkdir(parents=True, exist_ok=True, mode=0o755)
-
-
-def selected_input_dir(env):
-    """Resolve one authorized input root without falling back to examples/."""
-    explicit = env.get("FINDER_INPUT_DIR")
-
-    if explicit:
-        path = Path(explicit).expanduser().absolute()
-
-        if path.is_symlink() or not path.is_dir():
-            raise ValueError("FINDER_INPUT_DIR must be an existing real directory")
-
-        if any(parent.is_symlink() for parent in path.parents):
-            raise ValueError("FINDER_INPUT_DIR must not have symlink ancestors")
-
-        return path
-
-    target = env.get("FINDER_TARGET", "default").strip()
-
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", target):
-        raise ValueError("Invalid FINDER_TARGET")
-
-    path = ROOT / ".operator" / "inputs" / target
-
-    if path.is_symlink():
-        raise ValueError("Target input directory must not be a symlink")
-
-    path.mkdir(parents=True, exist_ok=True, mode=0o755)
-    return path
 
 
 def stop_oneoffs(run=subprocess.run):
@@ -243,21 +207,9 @@ def main():
     # Create only this new project's operator directories; never adopt old volumes.
     try:
         prepare_operator_dirs()
-
-        runtime_env = os.environ.copy()
-        runtime_env["FINDER_INPUT_DIR"] = str(selected_input_dir(runtime_env))
-
-        for cmd in commands(args.action, extra, runtime_env):
-            subprocess.run(
-                cmd,
-                cwd=ROOT,
-                check=True,
-                shell=False,
-                env=runtime_env,
-            )
-
-        if args.action == "stop":
-            stop_oneoffs()
+        for cmd in commands(args.action, extra, os.environ):
+            subprocess.run(cmd, cwd=ROOT, check=True, shell=False)
+        if args.action == "stop":stop_oneoffs()
     except (ValueError, OSError, subprocess.CalledProcessError):
         print("Action failed. Use doctor for credential-free diagnostics; check Docker status and the requested input path.", file=sys.stderr)
         raise SystemExit(2)

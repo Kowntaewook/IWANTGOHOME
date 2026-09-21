@@ -22,7 +22,6 @@ ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
         ("GET", rf"/api/v4/users/username/{SAFE_NAME}\Z"),
         ("PUT", rf"/api/v4/users/{ID}/roles\Z"),
         ("GET", r"/api/v4/roles/name/system_user_manager\Z"),
-        ("PUT", rf"/api/v4/roles/{ID}/patch\Z"),
         ("GET", rf"/api/v4/teams/name/{SAFE_NAME}\Z"),
         ("POST", r"/api/v4/teams\Z"),
         ("POST", rf"/api/v4/teams/{ID}/members\Z"),
@@ -72,7 +71,7 @@ def response_shape(value: Any, depth: int = 0) -> Any:
 
 class LocalMattermostClient:
     host = "127.0.0.1"
-    port = 8065
+    port = 13100
     max_body = 512 * 1024
 
     def __init__(self, token: str | None = None, timeout: float = 5.0):

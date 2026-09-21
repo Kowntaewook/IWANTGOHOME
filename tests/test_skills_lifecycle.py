@@ -74,29 +74,7 @@ def test_lifecycle_preserves_legacy_state_and_volumes():
     for name,svc in compose['services'].items():
         assert not svc.get('privileged') and not svc.get('ports')
         assert 'docker.sock' not in str(svc.get('volumes',[]))
-    codex_volumes = compose['services']['codex']['volumes']
-
-    # Persistent Codex auth/session state must remain isolated in its
-    # dedicated named volume.
-    assert 'codex-state-v1:/home/node/.codex' in codex_volumes
-
-    bind_mounts = {
-        item['target']: item
-        for item in codex_volumes
-        if isinstance(item, dict) and item.get('type') == 'bind'
-    }
-
-    assert bind_mounts['/work/input']['read_only'] is True
-    assert bind_mounts['/etc/codex/skills']['read_only'] is True
-    assert bind_mounts['/work/AGENTS.md']['read_only'] is True
-    assert bind_mounts['/work/prompts']['read_only'] is True
-
-    # Never expose the private Codex state through another bind mount.
-    assert all(
-        item.get('target') != '/home/node/.codex'
-        for item in codex_volumes
-        if isinstance(item, dict)
-    )
+    assert compose['services']['codex']['volumes']==['codex-state-v1:/home/node/.codex']
     assert compose['networks']['analysis-internal']['internal']
 
 

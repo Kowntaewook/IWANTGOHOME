@@ -115,6 +115,15 @@ def _print_full_hunt(result: dict) -> None:
     ):
         print(f"{_label(key)}: {_safe(result[key])}")
     print("")
+    print("Scenario synthesis:")
+    for key in (
+        "scenario_candidates_considered", "scenario_bindings_matched",
+        "scenario_generated", "scenario_ready", "scenario_executed",
+        "scenario_verified", "scenario_intended_behavior", "scenario_blocked",
+        "scenario_manual_remaining",
+    ):
+        print(f"- {_label(key.removeprefix('scenario_'))}: {_safe(result.get(key, 0))}")
+    print("")
     print("Root-cause clusters:")
     for cluster in result["root_cause_clusters"]:
         print(f"- {cluster['id']} ({cluster['status']}): {', '.join(cluster['candidates'])}")

@@ -8,6 +8,16 @@ from typing import Any
 from ctf_mcp.local_targets.base import LocalTargetError
 
 from .clustering import cluster_outcomes
+from .scenario import (
+    ScenarioPlan,
+    execute_scenario,
+    generated_scenario_record,
+    not_generatable,
+    scenario_summary,
+    synthesize_from_bindings,
+    validate_scenario_plan,
+    write_scenario_artifacts,
+)
 from .schema import (
     FullHuntTargetAdapter,
     RuntimeRequest,
@@ -47,6 +57,7 @@ class FullHuntEngine:
         outcomes = []
         for candidate in candidates:
             local = None
+            scenario = None
             selector = getattr(self.adapter, "should_validate_candidate", None)
             should_validate = (
                 selector(candidate) if callable(selector)
@@ -69,6 +80,60 @@ class FullHuntEngine:
                         "assertions": {"control_passed": False},
                         "blocked_reason": runtime_error or "VALIDATION_BLOCKED",
                     }
+            scenario_selector = getattr(self.adapter, "should_synthesize_scenario", None)
+            should_synthesize = (
+                scenario_selector(candidate) if callable(scenario_selector)
+                else candidate["static_status"] in {"BLOCKED_STATIC", "NEEDS_MANUAL_SCENARIO"}
+            )
+            synthesizer = getattr(self.adapter, "synthesize_scenario", None)
+            binding_provider = getattr(self.adapter, "scenario_bindings", None)
+            capability_provider = getattr(self.adapter, "scenario_capabilities", None)
+            fixture_check = getattr(self.adapter, "check_scenario_fixtures", None)
+            scenario_executor = getattr(self.adapter, "execute_scenario", None)
+            if (should_synthesize and callable(capability_provider)
+                    and (callable(synthesizer) or callable(binding_provider))):
+                capabilities = capability_provider()
+                generated = (
+                    synthesize_from_bindings(
+                        candidate=candidate,
+                        target_id=self.adapter.target_id,
+                        bindings=tuple(binding_provider()),
+                        capabilities=capabilities,
+                    )
+                    if callable(binding_provider)
+                    else synthesizer(candidate, capabilities)
+                )
+                if isinstance(generated, ScenarioPlan):
+                    try:
+                        validate_scenario_plan(generated, capabilities)
+                        scenario = generated_scenario_record(generated)
+                    except LocalTargetError as error:
+                        scenario = generated_scenario_record(generated)
+                        scenario["status"] = "SCENARIO_UNSAFE"
+                        scenario["blocker"] = error.code
+                        scenario["safety_result"]["passed"] = False
+                    if (scenario["status"] == "SCENARIO_GENERATED" and runtime_ready
+                            and callable(fixture_check) and callable(scenario_executor)):
+                        scenario, scenario_local = execute_scenario(
+                            generated,
+                            capabilities,
+                            fixture_check=fixture_check,
+                            execute=lambda plan: scenario_executor(
+                                plan, RuntimeRequest("pinned", candidate["candidate_id"]),
+                            ),
+                        )
+                        if scenario_local is not None:
+                            local = scenario_local
+                    elif scenario["status"] == "SCENARIO_GENERATED":
+                        scenario["status"] = "SCENARIO_BLOCKED"
+                        scenario["blocker"] = runtime_error or "VALIDATION_BLOCKED"
+                elif isinstance(generated, dict):
+                    scenario = generated
+                else:
+                    scenario = not_generatable(
+                        candidate["candidate_id"], self.adapter.target_id,
+                        "adapter_returned_no_source_backed_plan",
+                    )
             duplicate = None
             matrix = None
             if local and local.get("status") == "VERIFIED_LOCAL":
@@ -80,7 +145,11 @@ class FullHuntEngine:
                     "NO_PUBLIC_DUPLICATE_FOUND", "POSSIBLE_DUPLICATE",
                 }:
                     matrix = self.adapter.version_retest(candidate, local, duplicate)
-            classification = self.adapter.classify(candidate, local, duplicate, matrix)
+            scenario_classifier = getattr(self.adapter, "classify_with_scenario", None)
+            if callable(scenario_classifier):
+                classification = scenario_classifier(candidate, local, duplicate, matrix, scenario)
+            else:
+                classification = self.adapter.classify(candidate, local, duplicate, matrix)
             root_key = self.adapter.cluster_key(candidate)
             root_metadata = self.adapter.root_cause_metadata(root_key, [])
             outcome = normalized_outcome(
@@ -91,6 +160,7 @@ class FullHuntEngine:
                 duplicate_research=duplicate,
                 version_matrix=matrix,
                 classification=classification,
+                scenario_synthesis=scenario,
             )
             outcome["candidate"] = candidate
             enrich = getattr(self.adapter, "enrich_outcome", None)
@@ -120,9 +190,16 @@ class FullHuntEngine:
             blockers=blockers,
             run_id=run_id,
         )
+        report_directory = artifacts.get("report_directory")
+        if isinstance(report_directory, str):
+            artifacts["scenario_artifacts"] = write_scenario_artifacts(
+                root, report_directory, outcomes,
+            )
         summary = getattr(self.adapter, "result_summary", None)
         if callable(summary):
-            return summary(source, candidates, outcomes, clusters, blockers, artifacts)
+            result = summary(source, candidates, outcomes, clusters, blockers, artifacts)
+            result.update(scenario_summary(outcomes))
+            return result
         return {
             "target": self.adapter.target_id,
             "source": source,
@@ -130,5 +207,6 @@ class FullHuntEngine:
             "outcomes": outcomes,
             "clusters": clusters,
             "pipeline_blockers": blockers,
+            **scenario_summary(outcomes),
             **artifacts,
         }

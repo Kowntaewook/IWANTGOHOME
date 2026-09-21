@@ -45,6 +45,7 @@ TOKEN_PATH = f"/api/v1/users/{OWNER}/tokens"
 CONTROL_TOKEN_DELETE_PATH = TOKEN_PATH + "/" + CONTROL_TOKEN_NAME
 PUBLIC_ONLY_TOKEN_DELETE_PATH = TOKEN_PATH + "/" + PUBLIC_ONLY_TOKEN_NAME
 TEAM_REPOS_PATTERN = re.compile(r"/api/v1/teams/[1-9][0-9]{0,18}/repos\?limit=50\Z")
+REPOSITORY_BY_ID_PATTERN = re.compile(r"/api/v1/repositories/[1-9][0-9]{0,18}\Z")
 TEAM_REPOSITORIES = (ORG_PUBLIC_REPOSITORY, ORG_PRIVATE_REPOSITORY)
 TEAM_REPO_MUTATION_PATTERNS = tuple(
     re.compile(
@@ -105,6 +106,9 @@ GITEA_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
     "G06": (("GET", re.compile(re.escape(USER_REPOS_PATH) + r"\Z")),),
     "G07": (("GET", re.compile(re.escape(ORG_REPOS_PATH) + r"\Z")),),
     "G08": (("GET", TEAM_REPOS_PATTERN),),
+    "scenario": (("GET", REPOSITORY_BY_ID_PATTERN),) + tuple(
+        ("GET", pattern) for pattern in TEAM_REPO_MUTATION_PATTERNS
+    ),
 }
 
 

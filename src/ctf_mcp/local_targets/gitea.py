@@ -1745,6 +1745,7 @@ class GiteaAdapter(LocalTargetAdapter):
                 pinned_digest=GITEA_IMAGE_DIGEST,
                 duplicate_client=public_research,
                 retest_provider=retest_provider,
+                local_adapter=self,
             )
         finally:
             if latest_adapter is not None:
