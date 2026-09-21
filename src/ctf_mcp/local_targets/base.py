@@ -212,22 +212,4 @@ def load_adapter(
     *,
     runner: FixedCommandRunner | None = None,
 ) -> LocalTargetAdapter:
-    if target_id not in {"mattermost", "gitea"}:
-        raise LocalTargetError("invalid_local_target")
-    manifest = load_manifest(root, target_id)
-    # The manifest is metadata only. Code pins these values independently so a
-    # changed JSON file can never redirect clone or network operations.
-    from .gitea import GiteaAdapter
-    from .mattermost import MattermostAdapter
-
-    registry: dict[str, type[LocalTargetAdapter]] = {
-        "mattermost": MattermostAdapter,
-        "gitea": GiteaAdapter,
-    }
-    adapter_type = registry[target_id]
-    if (manifest.target_id != adapter_type.target_id
-            or manifest.repository != adapter_type.repository
-            or manifest.revision != adapter_type.pinned_revision
-            or manifest.host_health_url != adapter_type.host_health_url):
-        raise LocalTargetError("invalid_local_target_manifest")
-    return adapter_type(root, manifest, runner=runner)
+    raise LocalTargetError("invalid_local_target")

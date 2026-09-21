@@ -1,6 +1,0 @@
-{
-  "target_id": "mattermost",
-  "repository": "https://github.com/mattermost/mattermost",
-  "revision": "d283cc6301368f6e3dc0fa6be0a1537a9677750b",
-  "host_health_url": "http://127.0.0.1:13100/api/v4/system/ping"
-}

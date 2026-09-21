@@ -1,6 +1,0 @@
-{
-  "target_id": "gitea",
-  "repository": "https://github.com/go-gitea/gitea",
-  "revision": "146cc3eec57174711eac0e0a0c7b38670c6e3922",
-  "host_health_url": "http://127.0.0.1:13000/api/healthz"
-}

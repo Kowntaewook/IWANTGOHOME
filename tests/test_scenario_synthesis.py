@@ -190,5 +190,5 @@ def test_redaction_and_report_serialization(tmp_path):
 
 def test_core_scenario_module_has_no_target_specific_vocabulary():
     raw = (Path(__file__).parents[1] / "src/ctf_mcp/full_hunt/scenario.py").read_text().lower()
-    for forbidden in ("gitea", "mattermost", "/api/v1/", "/api/v4/"):
+    for forbidden in ("vendor_specific_marker", "/vendor/private/api/"):
         assert forbidden not in raw

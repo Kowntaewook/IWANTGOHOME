@@ -25,8 +25,6 @@ IWANTGOHOME
 config/analysis.json
 config/browser.json
 config/codex.toml
-config/local-targets/mattermost.json
-config/local-targets/gitea.json
 config/tool-downloads.json
 constraints.txt
 docker-compose.yml
@@ -111,13 +109,6 @@ src/ctf_mcp/ghidra_scripts/FinderMetadata.java
 src/ctf_mcp/healthcheck.py
 src/ctf_mcp/local_targets/__init__.py
 src/ctf_mcp/local_targets/base.py
-src/ctf_mcp/local_targets/gitea.py
-src/ctf_mcp/local_targets/gitea_http.py
-src/ctf_mcp/local_targets/gitea_hunt.py
-src/ctf_mcp/local_targets/gitea_discovery.py
-src/ctf_mcp/local_targets/gitea_full_hunt.py
-src/ctf_mcp/local_targets/http.py
-src/ctf_mcp/local_targets/mattermost.py
 src/ctf_mcp/native_tools.py
 src/ctf_mcp/platform_views.py
 src/ctf_mcp/platforms.py
@@ -164,9 +155,6 @@ tests/test_burp_adapter.py
 tests/test_device_adapter.py
 tests/test_distribution.py
 tests/test_mcp.py
-tests/test_local_targets.py
-tests/test_local_targets_gitea.py
-tests/test_local_targets_integration.py
 tests/test_optional_native.py
 tests/test_performance.py
 tests/test_persistent_sessions.py
@@ -177,3 +165,6 @@ tests/test_scout.py
 tests/test_skills_lifecycle.py
 tests/test_upgrade_offline.py
 tests/test_web.py
+src/ctf_mcp/full_hunt/engine.py
+src/ctf_mcp/full_hunt/schema.py
+src/ctf_mcp/full_hunt/scenario.py
