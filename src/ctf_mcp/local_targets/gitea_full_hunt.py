@@ -6,15 +6,26 @@ from datetime import datetime, timezone
 import hashlib
 import http.client
 import json
-import os
 from pathlib import Path
 import re
 import secrets
 from typing import Any, Callable
 from urllib.parse import quote, urlencode
 
-from .base import LocalTargetError, atomic_private_json, secure_directory
-from .gitea_discovery import discover_and_triage, generate_scenario
+from ctf_mcp.full_hunt.duplicate import (
+    DuplicateResearchPolicy,
+    evaluate_duplicate_research,
+)
+from ctf_mcp.full_hunt.version_retest import (
+    compose_version_matrix,
+    validate_retest_target as validate_generic_retest_target,
+)
+from ctf_mcp.full_hunt.reporting import ReportWriter, write_private_text
+from ctf_mcp.full_hunt.runtime import assert_secret_free
+from ctf_mcp.full_hunt.clustering import cluster_outcomes
+
+from .base import LocalTargetError, secure_directory
+from .gitea_discovery import generate_scenario
 from .gitea_hunt import _render_poc
 
 
@@ -26,11 +37,6 @@ SUPPLEMENTARY_DUPLICATE_SOURCES = ("nvd",)
 ALL_DUPLICATE_SOURCES = CORE_DUPLICATE_SOURCES + SUPPLEMENTARY_DUPLICATE_SOURCES
 SOURCE_RESEARCH_STATUSES = frozenset({"ok", "empty", "unavailable", "error"})
 MINIMUM_CORE_SOURCE_COVERAGE = 3
-FINAL_STATUSES = frozenset({
-    "REJECTED_STATIC", "INTENDED_BEHAVIOR", "BLOCKED_BY_LOCAL_SETUP",
-    "NEEDS_MANUAL_SCENARIO", "VERIFIED_LOCAL", "KNOWN_DUPLICATE",
-    "POSSIBLE_DUPLICATE", "NEW_SECURITY_CANDIDATE",
-})
 RETEST_STATUSES = frozenset({
     "AFFECTS_PINNED_ONLY", "AFFECTS_LATEST", "AFFECTS_MAIN",
     "FIXED_IN_LATEST", "FIXED_IN_MAIN", "RETEST_BLOCKED",
@@ -146,17 +152,6 @@ def research_duplicate(
     except (LocalTargetError, OSError, ValueError, TypeError):
         records = []
         source_statuses = {source: "error" for source in ALL_DUPLICATE_SOURCES}
-    source_statuses = _normalize_source_statuses(source_statuses)
-    core_sources_checked = [
-        source for source in CORE_DUPLICATE_SOURCES
-        if source_statuses[source] in {"ok", "empty"}
-    ]
-    core_coverage_met = len(core_sources_checked) >= MINIMUM_CORE_SOURCE_COVERAGE
-    unavailable_sources = [
-        source for source in ALL_DUPLICATE_SOURCES
-        if source_statuses[source] in {"unavailable", "error"}
-    ]
-    research_incomplete = bool(unavailable_sources)
     exact: list[dict[str, Any]] = []
     possible: list[dict[str, Any]] = []
     for known in KNOWN_PUBLIC_MATCHES:
@@ -166,43 +161,22 @@ def research_duplicate(
             ]))
         elif candidate["candidate_id"] in known["related_candidate_ids"]:
             possible.append(_sanitized_match(known, ["shared_query_path", "different_endpoint"]))
-    for record in records:
-        strength = _record_match_strength(candidate, record)
-        if strength == "exact":
-            exact.append(_sanitized_match(record, ["exact_endpoint", "shared_query_path"]))
-        elif strength == "possible":
-            possible.append(_sanitized_match(record, ["shared_query_path", "semantic_overlap"]))
-    matches = _deduplicate_matches(exact + possible)
-    if exact:
-        status, confidence = "KNOWN_DUPLICATE", "high"
-        reasoning = ["public_record_matches_endpoint_and_query_path"]
-    elif possible:
-        status, confidence = "POSSIBLE_DUPLICATE", "medium"
-        reasoning = ["public_record_shares_query_path_but_not_all_invariants"]
-    elif core_coverage_met:
-        status, confidence = "NO_PUBLIC_DUPLICATE_FOUND", "low"
-        reasoning = ["no_endpoint_and_query_path_match_in_checked_core_sources"]
-        if research_incomplete:
-            reasoning.append("research_incomplete_but_minimum_core_coverage_met")
-    else:
-        status, confidence = "DUPLICATE_CHECK_BLOCKED", "none"
-        reasoning = ["minimum_core_duplicate_research_coverage_not_met"]
-    result = {
-        "candidate_id": candidate["candidate_id"],
-        "duplicate_status": status,
-        "possible_matches": matches,
-        "searched_terms": terms,
-        "searched_sources": list(ALL_DUPLICATE_SOURCES),
-        "source_statuses": source_statuses,
-        "unavailable_sources": unavailable_sources,
-        "research_incomplete": research_incomplete,
-        "core_sources_checked": core_sources_checked,
-        "minimum_core_source_coverage": MINIMUM_CORE_SOURCE_COVERAGE,
-        "core_coverage_met": core_coverage_met,
-        "reasoning_facts": reasoning,
-        "confidence": confidence,
-        "no_public_match_is_not_novelty_confirmation": True,
-    }
+    result = evaluate_duplicate_research(
+        candidate_id=candidate["candidate_id"],
+        terms=terms,
+        policy=DuplicateResearchPolicy(
+            ALL_DUPLICATE_SOURCES,
+            CORE_DUPLICATE_SOURCES,
+            MINIMUM_CORE_SOURCE_COVERAGE,
+        ),
+        records=records,
+        source_statuses=_normalize_source_statuses(source_statuses),
+        known_exact=exact,
+        known_possible=possible,
+        match_strength=lambda record: _record_match_strength(candidate, record),
+        sanitize_match=_sanitized_match,
+        deduplicate=_deduplicate_matches,
+    )
     _assert_sanitized(result)
     return result
 
@@ -229,44 +203,55 @@ def build_version_matrix(
         ),
         "control_passed": bool(local_result and local_result.get("assertions", {}).get("control_passed")),
         "evidence_ids": _local_evidence_ids(local_result),
+        "kind": "pinned", "status": "tested_locally",
     }
-    supplied = {item.get("target"): item for item in (retest_records or [])}
-    latest = supplied.get("latest") or _blocked_retest_target(
-        "latest", "127.0.0.1:13001", "gitea-latest-13001",
-        "isolated_latest_runtime_not_available",
+    def blocked(kind: str) -> dict[str, Any]:
+        return _blocked_retest_target(
+            kind,
+            {"latest": "127.0.0.1:13001", "main": "127.0.0.1:13002"}[kind],
+            {"latest": "gitea-latest-13001", "main": "gitea-main-13002"}[kind],
+            {
+                "latest": "isolated_latest_runtime_not_available",
+                "main": "MAIN_RUNTIME_FAILED",
+            }[kind],
+        )
+
+    def matrix_status(indexed: dict[str, dict[str, Any]]) -> str:
+        latest_result = indexed["latest"]["result"]
+        main_result = indexed["main"]["result"]
+        if not pinned_affected:
+            return "RETEST_BLOCKED"
+        if latest_result == "RETEST_BLOCKED" or main_result == "RETEST_BLOCKED":
+            return "RETEST_BLOCKED"
+        if latest_result == "AFFECTED" and main_result == "AFFECTED":
+            return "AFFECTS_MAIN"
+        if latest_result == "AFFECTED" and main_result == "INTENDED_BEHAVIOR":
+            return "FIXED_IN_MAIN"
+        if latest_result == "AFFECTED":
+            return "AFFECTS_LATEST"
+        if latest_result == "INTENDED_BEHAVIOR" and main_result == "INTENDED_BEHAVIOR":
+            return "FIXED_IN_LATEST"
+        if latest_result == "INTENDED_BEHAVIOR" and main_result == "AFFECTED":
+            return "AFFECTS_MAIN"
+        return "AFFECTS_PINNED_ONLY"
+
+    matrix = compose_version_matrix(
+        candidate_id=candidate["candidate_id"],
+        pinned=pinned,
+        target_kinds=("latest", "main"),
+        supplied=retest_records or [],
+        blocked_target=blocked,
+        validate_target=_validate_retest_target,
+        classify=matrix_status,
     )
-    main = supplied.get("main") or _blocked_retest_target(
-        "main", "127.0.0.1:13002", "gitea-main-13002",
-        "isolated_main_runtime_not_available",
-    )
-    targets = [pinned, _validate_retest_target(latest), _validate_retest_target(main)]
-    if len({item["runtime_id"] for item in targets}) != 3 or len({item["endpoint"] for item in targets}) != 3:
-        raise LocalTargetError("retest_runtime_not_isolated")
-    latest_result = targets[1]["result"]
-    main_result = targets[2]["result"]
-    if not pinned_affected:
-        status = "RETEST_BLOCKED"
-    elif latest_result == "AFFECTED" and main_result == "AFFECTED":
-        status = "AFFECTS_MAIN"
-    elif latest_result == "AFFECTED" and main_result == "INTENDED_BEHAVIOR":
-        status = "FIXED_IN_MAIN"
-    elif latest_result == "AFFECTED":
-        status = "AFFECTS_LATEST"
-    elif latest_result == "INTENDED_BEHAVIOR" and main_result == "INTENDED_BEHAVIOR":
-        status = "FIXED_IN_LATEST"
-    elif latest_result == "INTENDED_BEHAVIOR" and main_result == "AFFECTED":
-        status = "AFFECTS_MAIN"
-    elif latest_result == "INTENDED_BEHAVIOR" and main_result == "RETEST_BLOCKED":
-        status = "FIXED_IN_LATEST"
-    elif latest_result == "RETEST_BLOCKED" or main_result == "RETEST_BLOCKED":
-        status = "RETEST_BLOCKED"
-    else:
-        status = "AFFECTS_PINNED_ONLY"
-    return {
-        "candidate_id": candidate["candidate_id"],
-        "status": status,
-        "targets": targets,
-    }
+    for item in matrix["targets"][1:]:
+        item["kind"] = item["target"]
+        item["status"] = {
+            "AFFECTED": "affected",
+            "INTENDED_BEHAVIOR": "fixed",
+            "RETEST_BLOCKED": "retest_blocked",
+        }[item["result"]]
+    return matrix
 
 
 def final_classification(
@@ -322,119 +307,58 @@ def run_full_hunt(
     retest_provider: Callable[[dict[str, Any]], list[dict[str, Any]]] | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run all full-hunt stages while preserving stage-specific blockers."""
-    pipeline_blockers: list[dict[str, str]] = []
-    try:
-        ensure_source()
-        candidates = discover_and_triage(source_root)
-    except LocalTargetError as error:
-        candidates = []
-        pipeline_blockers.append({"stage": "source_discovery", "reason": error.code})
-    scenarios = {item["candidate_id"]: generate_scenario(item) for item in candidates}
-    bootstrapped = False
-    try:
-        bootstrapped, local_results = collect_local_results()
-        local_blocker = None
-    except LocalTargetError as error:
-        local_results = []
-        local_blocker = error.code
-        pipeline_blockers.append({"stage": "local_validation", "reason": error.code})
-    local_by_id = {item.get("candidate"): item for item in local_results}
-    regression_baseline = [_regression_outcome(item) for item in local_results]
-    research_client = duplicate_client or PublicResearchClient()
-    duplicate_results: list[dict[str, Any]] = []
-    version_matrices: list[dict[str, Any]] = []
-    outcomes: list[dict[str, Any]] = []
-    for candidate in candidates:
-        scenario = scenarios[candidate["candidate_id"]]
-        baseline = candidate.get("baseline_candidate")
-        local = local_by_id.get(baseline)
-        if local is None and local_blocker and scenario["status"] == "LOCAL_BASELINE_REUSE":
-            local = {
-                "candidate": baseline, "status": "BLOCKED_BY_LOCAL_SETUP",
-                "assertions": {"control_passed": False}, "blocked_reason": local_blocker,
-            }
-        duplicate = None
-        matrix = None
-        if local and local.get("status") == "VERIFIED_LOCAL":
-            duplicate = research_duplicate(candidate, research_client)
-            duplicate_results.append(duplicate)
-            if duplicate["duplicate_status"] in {"NO_PUBLIC_DUPLICATE_FOUND", "POSSIBLE_DUPLICATE"}:
-                records = retest_provider(candidate) if retest_provider else []
-                matrix = build_version_matrix(
-                    candidate,
-                    pinned_version=pinned_version,
-                    pinned_commit=pinned_commit,
-                    pinned_digest=pinned_digest,
-                    local_result=local,
-                    retest_records=records,
-                )
-                version_matrices.append(matrix)
-        final = final_classification(candidate, scenario, local, duplicate, matrix)
-        if final not in FINAL_STATUSES:
-            raise LocalTargetError("invalid_full_hunt_classification")
-        outcomes.append(_candidate_outcome(candidate, scenario, local, duplicate, matrix, final))
-    clusters = cluster_full_findings(outcomes)
-    artifacts = create_full_reports(
-        root,
-        target="gitea",
+    """Compatibility entrypoint backed by the target-neutral engine."""
+    from ctf_mcp.full_hunt.engine import FullHuntEngine
+    from .gitea_hunt_adapter import GITEA_FULL_HUNT_REGISTRY
+
+    adapter = GITEA_FULL_HUNT_REGISTRY.create(
+        "gitea",
+        source_root=source_root,
+        ensure_source=ensure_source,
+        collect_local_results=collect_local_results,
         pinned_version=pinned_version,
         pinned_commit=pinned_commit,
         pinned_digest=pinned_digest,
-        candidates=candidates,
-        outcomes=outcomes,
-        clusters=clusters,
-        duplicate_results=duplicate_results,
-        version_matrices=version_matrices,
-        regression_baseline=regression_baseline,
-        pipeline_blockers=pipeline_blockers,
-        run_id=run_id,
+        duplicate_client=duplicate_client or PublicResearchClient(),
+        retest_provider=retest_provider,
     )
-    counts = _full_counts(outcomes)
-    return {
-        "target": "gitea",
-        "pinned_version": pinned_version,
-        "bootstrap_performed": bootstrapped,
-        **counts,
-        "root_cause_clusters": [
-            {"id": item["id"], "candidates": item["candidate_ids"], "status": item["status"]}
-            for item in clusters
-        ],
-        "affected_versions": _affected_version_summary(version_matrices, pinned_version, outcomes),
-        "reports": artifacts["report_directory"],
-        "json_report": artifacts["json_report"],
-        "markdown_report": artifacts["markdown_report"],
-        "pipeline_blockers": pipeline_blockers,
-        "regression_baseline": regression_baseline,
-        "human_action_required": "Review NEW_SECURITY_CANDIDATE reports before private vendor disclosure.",
-        "external_submission_performed": False,
-        "outcomes": outcomes,
-    }
+    return FullHuntEngine(adapter).run(root=root, run_id=run_id)
 
 
 def cluster_full_findings(outcomes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for item in outcomes:
-        if item["final_status"] in {"REJECTED_STATIC", "NEEDS_MANUAL_SCENARIO", "BLOCKED_BY_LOCAL_SETUP"}:
-            continue
-        groups.setdefault(item["root_cause_key"], []).append(item)
     known_ids = {
         "activities.GetFeeds/public-only-visibility": "RC01",
         "activities.GetUserHeatmapData/public-only-visibility": "RC02",
         "listUserRepos/GetUserRepositories-count-before-filter": "RC03",
         "GetTeamRepos/CountTeamRepositories-count-before-filter": "RC04",
     }
+    normalized = [
+        {**item, "classification": item["final_status"]}
+        for item in outcomes
+    ]
+
+    def metadata(key: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "root_cause_id": known_ids.get(key) or "RC-" + hashlib.sha256(key.encode()).hexdigest()[:8].upper(),
+            "classification": _cluster_status([item["final_status"] for item in items]),
+        }
+
+    generic = cluster_outcomes(
+        normalized,
+        key_for=lambda item: item["root_cause_key"],
+        metadata_for=metadata,
+    )
     clusters = []
-    for key in sorted(groups):
-        items = groups[key]
+    for group in generic:
+        key = group["root_cause_key"]
+        items = group["outcomes"]
         cluster_id = known_ids.get(key) or "RC-" + hashlib.sha256(key.encode()).hexdigest()[:8].upper()
         duplicate = [item["duplicate_research"] for item in items if item["duplicate_research"]]
         matrices = [item["version_matrix"] for item in items if item["version_matrix"]]
-        status = _cluster_status([item["final_status"] for item in items])
         clusters.append({
             "id": cluster_id,
             "kind": "root_cause_cluster",
-            "status": status,
+            "status": group["classification"],
             "candidate_ids": [item["candidate_id"] for item in items],
             "baseline_candidates": list(dict.fromkeys(
                 item["baseline_candidate"] for item in items if item["baseline_candidate"]
@@ -472,12 +396,10 @@ def create_full_reports(
     run_id = run_id or _run_id()
     if target != "gitea" or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,95}", run_id):
         raise LocalTargetError("invalid_hunt_run_id")
-    run_root = root / ".operator" / "reports" / target / run_id
-    if run_root.exists() or run_root.is_symlink():
-        raise LocalTargetError("hunt_run_exists")
-    findings_root = run_root / "findings"
+    writer = ReportWriter(root, target, run_id)
+    findings_root, _ = writer.initialize()
+    run_root = writer.run_root
     poc_root = run_root / "poc"
-    secure_directory(findings_root)
     secure_directory(poc_root)
     report = {
         "schema_version": 2,
@@ -494,37 +416,32 @@ def create_full_reports(
         "static_candidates": candidates,
         "candidate_outcomes": outcomes,
         "root_cause_clusters": clusters,
+        "main_retest": _main_retest_report(version_matrices),
         "human_review_required": True,
         "external_submission_performed": False,
         "new_security_candidate_is_not_vendor_confirmation": True,
     }
     _assert_sanitized(report)
-    atomic_private_json(run_root / "report.json", report)
-    atomic_private_json(run_root / "duplicate-research.json", {
+    writer.json("report.json", report)
+    writer.json("duplicate-research.json", {
         "schema_version": 1, "results": duplicate_results,
     })
-    atomic_private_json(run_root / "version-matrix.json", {
+    writer.json("version-matrix.json", {
         "schema_version": 1, "results": version_matrices,
     })
-    _write_private_text(run_root / "report.md", _render_report_markdown(report), 0o600)
+    writer.text("report.md", _render_report_markdown(report), 0o600)
     for cluster in clusters:
         _assert_sanitized(cluster)
-        atomic_private_json(findings_root / (cluster["id"] + ".json"), cluster)
-        _write_private_text(
-            findings_root / (cluster["id"] + ".md"), _render_finding_markdown(cluster), 0o600,
-        )
+        writer.json("findings/" + cluster["id"] + ".json", cluster)
+        writer.text("findings/" + cluster["id"] + ".md", _render_finding_markdown(cluster), 0o600)
         baseline = tuple(cluster["baseline_candidates"])
         if baseline and all(value in {"G04", "G05", "G06", "G07", "G08"} for value in baseline):
-            _write_private_text(
+            write_private_text(
                 poc_root / (cluster["id"] + ".py"),
                 _render_poc({"candidate_ids": list(baseline)}),
                 0o700,
             )
-    return {
-        "report_directory": str(run_root.relative_to(root)),
-        "json_report": str((run_root / "report.json").relative_to(root)),
-        "markdown_report": str((run_root / "report.md").relative_to(root)),
-    }
+    return writer.result()
 
 
 def _candidate_outcome(
@@ -586,24 +503,49 @@ def _validate_retest_target(value: dict[str, Any]) -> dict[str, Any]:
         "target", "version", "commit", "digest", "runtime_id", "endpoint",
         "isolated", "result", "control_passed", "evidence_ids",
     }
-    allowed = required | {"blocked_reason"}
+    main_metadata = {
+        "source_branch", "source_repository", "source_fetched_at",
+        "image_tag", "image_id", "build_timestamp", "build_log_path",
+        "build_elapsed_seconds", "build_cache_hit", "runtime_host",
+        "bootstrap_status", "control_result", "candidate_result", "candidate_id",
+    }
+    allowed = required | {"blocked_reason", "kind", "status"} | main_metadata
     if (not isinstance(value, dict) or not required <= set(value) <= allowed
-            or value["target"] not in {"latest", "main"}
-            or value["endpoint"] not in {"127.0.0.1:13001", "127.0.0.1:13002"}
-            or value["isolated"] is not True
-            or value["result"] not in {"AFFECTED", "INTENDED_BEHAVIOR", "RETEST_BLOCKED"}
-            or not isinstance(value["control_passed"], bool)
-            or (value["result"] == "AFFECTED" and value["control_passed"] is not True)
-            or not isinstance(value["runtime_id"], str)
-            or not isinstance(value["evidence_ids"], list)):
+            or value["target"] not in {"latest", "main"}):
         raise LocalTargetError("invalid_retest_evidence")
+    validate_generic_retest_target(
+        value,
+        kinds=frozenset({"latest", "main"}),
+        endpoints={"latest": "127.0.0.1:13001", "main": "127.0.0.1:13002"},
+    )
     for key, pattern in (
         ("commit", r"[0-9a-f]{40}"), ("digest", r"sha256:[0-9a-f]{64}"),
     ):
         if value[key] is not None and not re.fullmatch(pattern, value[key]):
             raise LocalTargetError("invalid_retest_evidence")
-    if value["result"] != "RETEST_BLOCKED" and (not value["version"] or not value["commit"] or not value["digest"]):
+    if (value["result"] != "RETEST_BLOCKED"
+            and (not value["commit"] or not value["digest"])
+            and value["target"] == "main"):
         raise LocalTargetError("invalid_retest_evidence")
+    if (value["result"] != "RETEST_BLOCKED" and value["target"] == "latest"
+            and (not value["version"] or not value["commit"] or not value["digest"])):
+        raise LocalTargetError("invalid_retest_evidence")
+    if value["target"] == "main":
+        if value.get("blocked_reason") is not None and value["blocked_reason"] not in {
+            "MAIN_FETCH_FAILED", "MAIN_COMMIT_UNRESOLVED", "MAIN_BUILD_FAILED",
+            "MAIN_IMAGE_IDENTITY_FAILED", "MAIN_PORT_CONFLICT", "MAIN_RUNTIME_FAILED",
+            "MAIN_BOOTSTRAP_FAILED", "MAIN_API_INCOMPATIBLE", "MAIN_CONTROL_FAILED",
+        }:
+            raise LocalTargetError("invalid_retest_evidence")
+        if value["result"] != "RETEST_BLOCKED" and (
+            not re.fullmatch(r"sha256:[0-9a-f]{64}", str(value.get("image_id", "")))
+            or value.get("source_branch") != "main"
+            or value.get("source_repository") != "https://github.com/go-gitea/gitea"
+            or value.get("runtime_host") != "http://127.0.0.1:13002"
+            or value.get("bootstrap_status") != "ready"
+            or value.get("control_result") != "passed"
+        ):
+            raise LocalTargetError("invalid_retest_evidence")
     return value
 
 
@@ -660,8 +602,6 @@ def _source_document_count(source: str, data: Any) -> int:
 
 
 def _latest_is_affected(matrix: dict[str, Any]) -> bool:
-    if matrix.get("status") not in {"AFFECTS_LATEST", "AFFECTS_MAIN"}:
-        return False
     targets = matrix.get("targets")
     if not isinstance(targets, list):
         return False
@@ -789,16 +729,63 @@ def _affected_version_summary(
             next(item for item in matrix["targets"] if item["target"] == target)
             for matrix in matrices
         ]
+        if target == "main":
+            values = [
+                item for item in values
+                if item.get("candidate_id") in {"SD-G04", "SD-G08"}
+            ]
+        status = (
+            "affected" if any(item["result"] == "AFFECTED" for item in values)
+            else "fixed" if values and all(item["result"] == "INTENDED_BEHAVIOR" for item in values)
+            else "retest_blocked"
+        )
+        blocked_reason = next((
+            item.get("blocked_reason") for item in values if item.get("blocked_reason")
+        ), None)
+        if target == "main" and status == "retest_blocked" and blocked_reason is None:
+            blocked_reason = "MAIN_RUNTIME_FAILED"
         result.append({
             "target": target,
             "version": next((item["version"] for item in values if item["version"]), None),
-            "status": (
-                "affected" if any(item["result"] == "AFFECTED" for item in values)
-                else "fixed" if values and all(item["result"] == "INTENDED_BEHAVIOR" for item in values)
-                else "retest_blocked"
-            ),
+            "commit": next((item["commit"] for item in values if item["commit"]), None),
+            "blocked_reason": blocked_reason,
+            "status": status,
         })
     return result
+
+
+def _main_retest_report(matrices: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    values = []
+    for matrix in matrices:
+        main = next((
+            item for item in matrix.get("targets", []) if item.get("target") == "main"
+        ), None)
+        if not main or main.get("candidate_id") not in {"SD-G04", "SD-G08"}:
+            continue
+        values.append({
+            "candidate_id": matrix["candidate_id"],
+            "upstream_commit": main.get("commit"),
+            "source_timestamp": main.get("source_fetched_at"),
+            "source_repository": main.get("source_repository"),
+            "source_branch": main.get("source_branch"),
+            "image_id": main.get("image_id"),
+            "image_digest": main.get("digest"),
+            "image_tag": main.get("image_tag"),
+            "runtime_host": main.get("runtime_host"),
+            "bootstrap_status": main.get("bootstrap_status"),
+            "control_result": main.get("control_result"),
+            "candidate_result": main.get("candidate_result"),
+            "main_status": matrix["status"],
+            "blocked_reason": main.get("blocked_reason"),
+            "build": {
+                "success": main.get("image_id") is not None,
+                "log_path": main.get("build_log_path"),
+                "elapsed_seconds": main.get("build_elapsed_seconds"),
+                "timestamp": main.get("build_timestamp"),
+                "cache_hit": main.get("build_cache_hit"),
+            },
+        })
+    return values
 
 
 def _render_report_markdown(report: dict[str, Any]) -> str:
@@ -835,6 +822,23 @@ def _render_report_markdown(report: dict[str, Any]) -> str:
             )
     else:
         lines.append("Local baseline validation was blocked before candidate execution.")
+    lines.extend(["", "## Main retest", ""])
+    if report["main_retest"]:
+        for item in report["main_retest"]:
+            lines.extend([
+                f"### {item['candidate_id']}", "",
+                f"- Upstream commit: `{item['upstream_commit'] or 'unresolved'}`",
+                f"- Source timestamp: `{item['source_timestamp'] or 'unavailable'}`",
+                f"- Image identity: `{item['image_id'] or 'unavailable'}`",
+                f"- Runtime host: `{item['runtime_host'] or 'http://127.0.0.1:13002'}`",
+                f"- Bootstrap: `{item['bootstrap_status'] or 'blocked'}`",
+                f"- Control: `{item['control_result'] or 'blocked'}`",
+                f"- Candidate: `{item['candidate_result'] or 'blocked'}`",
+                f"- Main status: `{item['main_status']}`",
+                f"- Blocked reason: `{item['blocked_reason'] or 'none'}`", "",
+            ])
+    else:
+        lines.append("No candidate qualified for an upstream main retest.")
     lines.extend(["", "## Root-cause clusters", ""])
     for item in report["root_cause_clusters"]:
         lines.append(
@@ -848,7 +852,7 @@ def _render_report_markdown(report: dict[str, Any]) -> str:
 
 
 def _render_finding_markdown(cluster: dict[str, Any]) -> str:
-    return "\n".join([
+    lines = [
         f"# {cluster['id']} root-cause cluster", "",
         f"- Status: `{cluster['status']}`",
         f"- Candidates: {', '.join(cluster['candidate_ids'])}",
@@ -857,18 +861,32 @@ def _render_finding_markdown(cluster: dict[str, Any]) -> str:
         f"- Source locations: {', '.join(cluster['source_locations'])}",
         f"- Local evidence IDs: {', '.join(cluster['local_evidence_ids']) or 'none'}", "",
         "Review duplicate research and the version matrix in the adjacent JSON before disclosure.",
-    ]) + "\n"
+    ]
+    main_values = [
+        next((target for target in matrix.get("targets", []) if target.get("target") == "main"), None)
+        for matrix in cluster.get("version_matrix", [])
+    ]
+    main_values = [value for value in main_values if value and value.get("candidate_id")]
+    if main_values:
+        lines.extend(["", "## Main retest", ""])
+        for value in main_values:
+            lines.extend([
+                f"### {value['candidate_id']}", "",
+                f"- Upstream commit: `{value.get('commit') or 'unresolved'}`",
+                f"- Source timestamp: `{value.get('source_fetched_at') or 'unavailable'}`",
+                f"- Image identity: `{value.get('image_id') or 'unavailable'}`",
+                f"- Runtime host: `{value.get('runtime_host') or 'http://127.0.0.1:13002'}`",
+                f"- Bootstrap: `{value.get('bootstrap_status') or 'blocked'}`",
+                f"- Control: `{value.get('control_result') or 'blocked'}`",
+                f"- Candidate: `{value.get('candidate_result') or 'blocked'}`",
+                f"- Main result: `{value.get('status', 'retest_blocked')}`",
+                f"- Reason: `{value.get('blocked_reason') or 'none'}`", "",
+            ])
+    return "\n".join(lines) + "\n"
 
 
 def _write_private_text(path: Path, value: str, mode: int) -> None:
-    if path.exists() or path.is_symlink():
-        raise LocalTargetError("hunt_artifact_exists")
-    try:
-        with path.open("x", encoding="utf-8") as handle:
-            os.chmod(path, mode)
-            handle.write(value)
-    except OSError:
-        raise LocalTargetError("hunt_report_failed") from None
+    write_private_text(path, value, mode)
 
 
 def _run_id() -> str:
@@ -876,10 +894,4 @@ def _run_id() -> str:
 
 
 def _assert_sanitized(value: Any) -> None:
-    raw = json.dumps(value, ensure_ascii=True, sort_keys=True)
-    forbidden = (
-        '"authorization"', '"cookie"', '"password"', '"access_token"',
-        '"private_key"', '"credential"', 'basic ', 'bearer ',
-    )
-    if any(item in raw.lower() for item in forbidden):
-        raise LocalTargetError("unsafe_hunt_report")
+    assert_secret_free(value)

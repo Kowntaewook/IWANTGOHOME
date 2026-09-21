@@ -121,8 +121,14 @@ def _print_full_hunt(result: dict) -> None:
     print("")
     print("Affected versions:")
     for target in result["affected_versions"]:
-        version = target["version"] or "not available"
+        version = (
+            target.get("commit", "")[:12]
+            if target["target"] == "main" and target.get("commit")
+            else target["version"] or "not available"
+        )
         print(f"- {target['target']} {version}: {target['status']}")
+        if target.get("blocked_reason"):
+            print(f"  reason: {target['blocked_reason']}")
     print("")
     print(f"Reports: {result['reports']}")
     print("")

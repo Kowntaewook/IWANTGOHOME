@@ -77,7 +77,7 @@ FINDER_TARGET=gitea IWANTGOHOME local reset
 
 허용되지 않은 target, action, candidate는 각각 `invalid_local_target`, `invalid_local_action`, `unknown_local_candidate`로 종료된다. Candidate는 선택된 adapter의 코드 고정 `supported_candidates`에서 검사한다. Mattermost의 S12/S13/S15와 Gitea의 G01~G08은 서로 교차 사용할 수 없다.
 
-`hunt --full`은 Gitea adapter에서만 지원한다. Source 준비, 정적 후보 생성, 안전한 기존 validator 연결, 공개 중복 조사, 격리 version matrix, root-cause dedup과 최종 보고서를 한 실행으로 수행한다. 기존 `hunt`의 G01~G08 동작과 출력은 유지된다.
+`hunt --full`은 target-neutral `ctf_mcp.full_hunt.FullHuntEngine`이 explicit registry에서 선택한 target adapter를 실행한다. 현재 등록된 Gitea adapter는 source 준비, 정적 후보 생성, 안전한 기존 validator 연결, 공개 중복 조사, 격리 version matrix, root-cause dedup과 기존 형식 최종 보고서를 한 실행으로 제공한다. Upstream main은 `refs/heads/main`의 immutable commit을 `.operator/targets/gitea-main/<sha>/`에 분리하고, local rootless image와 `127.0.0.1:13002`의 전용 Compose/volume/bootstrap namespace로 SD-G04와 SD-G08만 재검증한다. 기존 `hunt`의 G01~G08 동작과 출력은 유지된다.
 
 ## Source acquisition
 

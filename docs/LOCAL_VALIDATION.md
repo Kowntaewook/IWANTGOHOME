@@ -132,6 +132,12 @@ Verified candidate는 source helper 기준 `root_cause_cluster`로만 묶는다.
 
 ## Gitea full hunt
 
+Full hunt의 pipeline core는 `ctf_mcp.full_hunt` package에 target-neutral하게 구현한다. Core는 source identity와 candidate/status schema, duplicate coverage 판정, immutable build cache key, isolated runtime lifecycle, version matrix 조립, root-cause grouping과 private report writer만 제공한다. 제품별 route, identity, fixture, duplicate query와 classification 정책은 target adapter가 제공한다.
+
+Target adapter contract는 `resolve_source`, `discover_candidates`, `static_triage`, `build_prepare_runtime`, `bootstrap`, `validate_candidate`, `duplicate_queries`, `duplicate_research`, `version_retest`, `cluster_key`, `root_cause_metadata`, `classify`, `write_report`로 구성된다. CLI가 선택한 target은 explicit full-hunt registry에서 adapter factory를 가져온다. 새 target은 core에 제품 route나 credential 형식을 추가하지 않고 이 contract를 구현한다.
+
+공통 report outcome에는 `target`, `candidate_id`, `root_cause_id`, `local_validation`, `duplicate_research`, `version_matrix`, `classification`, `evidence`, `provenance`가 있다. Gitea report는 기존 `candidate_outcomes`, summary, cluster, duplicate와 version matrix field도 유지한다.
+
 `FINDER_TARGET=gitea IWANTGOHOME local hunt --full`은 manifest의 pinned source가 없으면 공식 저장소에서 고정 commit을 준비한다. Go source를 정해진 파일·용량 한도 안에서 읽고 route registration, 상속 middleware, handler, helper/model query 호출을 연결한다. Keyword 한 개만으로 후보를 통과시키지 않으며 각 후보에 source file SHA-256과 다음 boolean fact를 남긴다.
 
 ```text
@@ -150,9 +156,13 @@ candidate_pattern_observed
 
 정적 상태는 `REJECTED_STATIC`, `NEEDS_LOCAL_VALIDATION`, `BLOCKED_STATIC`이다. Actions run/job처럼 repository ID binding이 handler에서 확인되면 정적으로 reject한다. 안전한 G04~G08 GET control/probe에 정확히 연결되는 후보만 자동 시나리오를 만들며 그 외 후보는 `NEEDS_MANUAL_SCENARIO`로 남긴다. 자동 시나리오는 `127.0.0.1:13000`, `finder-local-*`, bootstrap-only mutation, DB 직접 수정 금지와 고정 request budget을 강제한다.
 
-로컬에서 `VERIFIED_LOCAL`인 후보만 공개 duplicate research 대상으로 삼는다. 외부 연결은 credential 없는 GET으로 `api.github.com`과 `services.nvd.nist.gov`에만 허용하며 GitHub issues, merged PR 검색 결과, public advisories, Gitea releases와 NVD를 조회한다. Endpoint와 source function/query fact가 함께 맞아야 duplicate match가 된다. `NO_PUBLIC_DUPLICATE_FOUND`는 신규 취약점 확정으로 취급하지 않는다.
+로컬에서 `VERIFIED_LOCAL`인 후보만 공개 duplicate research 대상으로 삼는다. 외부 연결은 credential 없는 GET으로 `api.github.com`과 `services.nvd.nist.gov`에만 허용하며 GitHub issues, merged PR 검색 결과, public advisories, Gitea releases와 NVD를 조회한다. 각 source는 `ok`, `empty`, `unavailable`, `error`로 기록한다. GitHub issues, PRs, advisories와 Gitea releases가 core이며 이 중 최소 3개가 `ok` 또는 `empty`여야 core coverage가 충족된다. NVD는 supplementary source이므로 NVD만 실패하면 `research_incomplete=true`를 남기되 조사를 차단하지 않는다. Endpoint와 source function/query fact가 함께 맞아야 duplicate match가 된다. `NO_PUBLIC_DUPLICATE_FOUND`는 신규 취약점 확정으로 취급하지 않는다.
 
-Latest/main 재검증은 pinned runtime과 다른 loopback endpoint 및 runtime ID를 가진 evidence만 인정한다. 현재 supported latest stable인 1.27.3은 immutable image digest를 별도 Compose project와 `127.0.0.1:13001`에서 실행하고 별도 bootstrap, secret store, evidence directory를 사용한다. Version, commit, image digest, control 결과가 모두 있어야 affected/fixed 판정을 만들 수 있다. 검증된 immutable main image와 HEAD commit 쌍이 없거나 격리 runtime을 시작할 수 없으면 `RETEST_BLOCKED`이고, 외부 Gitea instance를 대신 테스트하지 않는다.
+Latest/main 재검증은 pinned runtime과 다른 loopback endpoint 및 runtime ID를 가진 evidence만 인정한다. 현재 supported latest stable인 1.27.3은 immutable image digest를 별도 Compose project와 `127.0.0.1:13001`에서 실행하고 별도 bootstrap, secret store, evidence directory를 사용한다.
+
+Upstream main 재검증은 공개 `go-gitea/gitea`의 `refs/heads/main`을 조회한 시점의 40자 commit SHA를 먼저 고정한다. 소스는 `.operator/targets/gitea-main/<commit>/`에 detached checkout하며 pinned 소스를 수정하지 않는다. `Dockerfile.rootless`에서 `iwantgohome/gitea-main:<sha12>` 이미지를 직접 build하고 commit, Dockerfile recipe hash, runtime configuration hash를 label과 cache key로 검증한다. RepoDigest가 없는 local image는 64자리 immutable image ID를 사용한다. Build log는 `.operator/local-runtime/gitea-main/`에 별도 저장하며 report에는 경로, 성공 여부, 시간과 identity만 포함한다.
+
+Main runtime은 Compose project `iwantgohome-local-gitea-main`, `127.0.0.1:13002`, SQLite, 전용 volume을 사용하고 SSH를 publish하지 않는다. Bootstrap, secrets와 evidence도 각각 `gitea-main` namespace를 사용한다. Main에서는 version retest 가치가 있는 `SD-G04`와 `SD-G08`만 기존 G04/G08 validator로 실행한다. Control이 성공한 뒤 동일 invariant violation이면 `AFFECTS_MAIN`, candidate behavior가 사라졌으면 `FIXED_IN_MAIN`이다. Build, port, runtime, bootstrap, API 또는 control을 신뢰할 수 없으면 지정된 `MAIN_*` reason과 함께 `RETEST_BLOCKED`다. Commit과 image identity가 없는 상태에서는 affected/fixed를 만들지 않으며 외부 Gitea instance를 대신 테스트하지 않는다. Main 결과는 `NEW_SECURITY_CANDIDATE` 연구 분류를 덮어쓰지 않는다.
 
 Full report는 새 `.operator/reports/gitea/<run-id>/`에 다음 구조로 append-only 생성된다.
 
@@ -166,4 +176,4 @@ duplicate-research.json
 version-matrix.json
 ```
 
-`NEW_SECURITY_CANDIDATE`는 deterministic local reproduction, 성공한 control, latest 또는 main 영향, 완료된 공개 검색에서 일치 없음, report evidence가 모두 있는 경우에만 사용한다. Vendor-confirmed vulnerability를 뜻하지 않으며 외부 제출은 수행하지 않는다.
+`NEW_SECURITY_CANDIDATE`는 deterministic local reproduction, 성공한 control, 유지된 route/handler/query source assertions, minimum core duplicate coverage, 공개 일치 없음, latest stable의 `AFFECTED` 결과와 report evidence가 모두 있는 경우에만 사용한다. `research_incomplete`인 supplementary 결과나 `NO_PUBLIC_DUPLICATE_FOUND` 자체는 novelty confirmation이 아니다. Vendor-confirmed vulnerability를 뜻하지 않으며 외부 제출은 수행하지 않는다.

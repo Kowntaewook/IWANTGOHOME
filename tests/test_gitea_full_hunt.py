@@ -181,6 +181,21 @@ class CoreUnavailableResearch:
         }
 
 
+class FrozenBaselineResearch(CompleteNoMatchResearch):
+    def search(self, candidate):
+        records, statuses = super().search(candidate)
+        if candidate["candidate_id"] == "SD-G05":
+            records = [{
+                "source": "github_issues",
+                "reference": "frozen-baseline:G05",
+                "url": "https://github.com/go-gitea/gitea/issues/32903",
+                "functions": ["GetUserHeatmapDataByUser"],
+                "endpoints": [],
+                "security_relevant": True,
+            }]
+        return records, statuses
+
+
 def isolated_retests(candidate):
     baseline = candidate["baseline_candidate"]
     return [
@@ -191,10 +206,24 @@ def isolated_retests(candidate):
             "control_passed": True, "evidence_ids": ["5" * 32],
         },
         {
-            "target": "main", "version": "main", "commit": "6" * 40,
+            "target": "main", "version": None, "commit": "6" * 40,
             "digest": "sha256:" + "7" * 64, "runtime_id": "main-" + baseline,
             "endpoint": "127.0.0.1:13002", "isolated": True, "result": "AFFECTED",
             "control_passed": True, "evidence_ids": ["8" * 32],
+            "source_branch": "main",
+            "source_repository": "https://github.com/go-gitea/gitea",
+            "source_fetched_at": "2026-09-21T00:00:00+00:00",
+            "image_tag": "iwantgohome/gitea-main:" + "6" * 12,
+            "image_id": "sha256:" + "7" * 64,
+            "build_timestamp": "2026-09-21T00:01:00+00:00",
+            "build_log_path": ".operator/local-runtime/gitea-main/build.log",
+            "build_elapsed_seconds": 12.5,
+            "build_cache_hit": False,
+            "runtime_host": "http://127.0.0.1:13002",
+            "bootstrap_status": "ready",
+            "control_result": "passed",
+            "candidate_result": "security_invariant_violation_reproduced",
+            "candidate_id": candidate["candidate_id"],
         },
     ]
 
@@ -516,6 +545,10 @@ def test_adapter_full_hunt_retests_supported_latest_in_isolated_runtime(tmp_path
 
     monkeypatch.setattr("ctf_mcp.local_targets.gitea.shutil.which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(PublicResearchClient, "latest_release_version", lambda self: GITEA_VERSION)
+    monkeypatch.setattr(
+        "ctf_mcp.local_targets.gitea_main_retest.GiteaMainRetest.supports",
+        lambda self, candidate: False,
+    )
     monkeypatch.setattr(GiteaAdapter, "up", lambda self, progress=print: {"status": "healthy"})
     monkeypatch.setattr(GiteaAdapter, "stop", lambda self: observed.setdefault("stopped", self.runtime_port))
     monkeypatch.setattr(GiteaAdapter, "_collect_hunt_results", lambda self: (
@@ -544,6 +577,49 @@ def test_adapter_full_hunt_retests_supported_latest_in_isolated_runtime(tmp_path
         "evidence_ids": ["00000000000000000000000000000004", "00000000000000000000000000000014"],
     }
     assert observed["stopped"] == 13001
+
+
+def test_adapter_full_hunt_filters_main_retest_to_g04_and_g08(tmp_path, monkeypatch):
+    manifest = LocalTargetManifest(
+        target_id="gitea",
+        repository="https://github.com/go-gitea/gitea",
+        revision="146cc3eec57174711eac0e0a0c7b38670c6e3922",
+        host_health_url="http://127.0.0.1:13000/api/healthz",
+    )
+    value = GiteaAdapter(tmp_path, manifest)
+    observed = []
+    monkeypatch.setattr("ctf_mcp.local_targets.gitea.shutil.which", lambda name: None)
+
+    def main_retest(self, candidate):
+        observed.append(candidate["candidate_id"])
+        result = isolated_retests(candidate)[1]
+        result["runtime_id"] = "gitea-main-13002"
+        return result
+
+    monkeypatch.setattr(
+        "ctf_mcp.local_targets.gitea_main_retest.GiteaMainRetest.retest", main_retest
+    )
+    monkeypatch.setattr(
+        "ctf_mcp.local_targets.gitea_main_retest.GiteaMainRetest.stop", lambda self: None
+    )
+
+    def fake_run_full_hunt(**kwargs):
+        records = {
+            candidate_id: kwargs["retest_provider"]({
+                "candidate_id": candidate_id,
+                "baseline_candidate": candidate_id.removeprefix("SD-"),
+            })
+            for candidate_id in ("SD-G04", "SD-G05", "SD-G08")
+        }
+        return records
+
+    monkeypatch.setattr(
+        "ctf_mcp.local_targets.gitea_full_hunt.run_full_hunt", fake_run_full_hunt
+    )
+    records = value.full_hunt()
+    assert observed == ["SD-G04", "SD-G08"]
+    assert records["SD-G05"] == []
+    assert [item["target"] for item in records["SD-G04"]] == ["main"]
 
 
 def test_full_hunt_orchestration_clusters_reports_and_redacts(tmp_path):
@@ -596,8 +672,15 @@ def test_full_hunt_orchestration_clusters_reports_and_redacts(tmp_path):
             assert "Cookie" not in raw
     report = json.loads((run / "report.json").read_text())
     duplicate_report = json.loads((run / "duplicate-research.json").read_text())
+    version_report = json.loads((run / "version-matrix.json").read_text())
     assert report["new_security_candidate_is_not_vendor_confirmation"] is True
     assert report["external_submission_performed"] is False
+    assert all(
+        {"target", "candidate_id", "root_cause_id", "local_validation",
+         "duplicate_research", "version_matrix", "classification", "evidence", "provenance"}
+        <= set(item)
+        for item in report["candidate_outcomes"]
+    )
     assert [item["candidate_id"] for item in report["local_regression_baseline"]] == [
         "G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08",
     ]
@@ -608,6 +691,63 @@ def test_full_hunt_orchestration_clusters_reports_and_redacts(tmp_path):
         <= set(item)
         for item in duplicate_report["results"]
     )
+    assert {item["candidate_id"] for item in report["main_retest"]} == {"SD-G04", "SD-G08"}
+    assert all(
+        {"upstream_commit", "source_timestamp", "image_id", "runtime_host",
+         "bootstrap_status", "control_result", "candidate_result", "main_status"} <= set(item)
+        for item in report["main_retest"]
+    )
+    assert all(
+        all({"kind", "status"} <= set(target) for target in matrix["targets"])
+        for matrix in version_report["results"]
+    )
+
+
+def test_generic_refactor_preserves_frozen_gitea_semantics(tmp_path):
+    source = source_tree(tmp_path)
+    results = [
+        local_result(f"G{number:02d}", "INTENDED_BEHAVIOR" if number < 4 else "VERIFIED_LOCAL")
+        for number in range(1, 9)
+    ]
+    output = run_full_hunt(
+        root=tmp_path,
+        source_root=source,
+        ensure_source=lambda: None,
+        collect_local_results=lambda: (False, results),
+        pinned_version="1.27.3",
+        pinned_commit=PINNED_COMMIT,
+        pinned_digest=PINNED_DIGEST,
+        duplicate_client=FrozenBaselineResearch(),
+        retest_provider=isolated_retests,
+        run_id="frozen-gitea-semantics",
+    )
+    projection = {
+        item["candidate_id"]: (
+            item["local_status"],
+            (item["duplicate_research"] or {}).get("duplicate_status"),
+            (item["version_matrix"] or {}).get("status"),
+            item["final_status"],
+        )
+        for item in output["outcomes"]
+        if item["candidate_id"] in {"SD-G04", "SD-G05", "SD-G06", "SD-G07", "SD-G08"}
+    }
+    assert projection == {
+        "SD-G04": ("VERIFIED_LOCAL", "NO_PUBLIC_DUPLICATE_FOUND", "AFFECTS_MAIN", "NEW_SECURITY_CANDIDATE"),
+        "SD-G05": ("VERIFIED_LOCAL", "POSSIBLE_DUPLICATE", "AFFECTS_MAIN", "POSSIBLE_DUPLICATE"),
+        "SD-G06": ("VERIFIED_LOCAL", "POSSIBLE_DUPLICATE", "AFFECTS_MAIN", "POSSIBLE_DUPLICATE"),
+        "SD-G07": ("VERIFIED_LOCAL", "KNOWN_DUPLICATE", None, "KNOWN_DUPLICATE"),
+        "SD-G08": ("VERIFIED_LOCAL", "NO_PUBLIC_DUPLICATE_FOUND", "AFFECTS_MAIN", "NEW_SECURITY_CANDIDATE"),
+    }
+    report = json.loads((tmp_path / output["json_report"]).read_text())
+    assert report["summary"] == {
+        "static_candidates": 6,
+        "rejected_statically": 1,
+        "validated_locally": 5,
+        "known_duplicates": 1,
+        "possible_duplicates": 2,
+        "new_security_candidates": 2,
+        "needs_manual_scenario": 0,
+    }
 
 
 def test_verified_no_public_match_runs_retest_and_can_be_new_candidate(tmp_path):
@@ -665,6 +805,134 @@ def test_new_candidate_requires_maintained_source_assertions(tmp_path):
     assert duplicate["no_public_match_is_not_novelty_confirmation"] is True
 
 
+def test_fixed_in_main_does_not_downgrade_new_security_candidate(tmp_path):
+    candidate = candidate_map(source_tree(tmp_path))["SD-G04"]
+    scenario = generate_scenario(candidate)
+    duplicate = research_duplicate(candidate, CompleteNoMatchResearch())
+    local = local_result("G04")
+    records = isolated_retests(candidate)
+    records[1]["result"] = "INTENDED_BEHAVIOR"
+    records[1]["candidate_result"] = "candidate_behavior_not_reproduced"
+    matrix = build_version_matrix(
+        candidate,
+        pinned_version="1.27.3",
+        pinned_commit=PINNED_COMMIT,
+        pinned_digest=PINNED_DIGEST,
+        local_result=local,
+        retest_records=records,
+    )
+    assert matrix["status"] == "FIXED_IN_MAIN"
+    assert final_classification(candidate, scenario, local, duplicate, matrix) == "NEW_SECURITY_CANDIDATE"
+
+
+def test_control_failure_cannot_serialize_as_fixed_in_main(tmp_path):
+    candidate = candidate_map(source_tree(tmp_path))["SD-G04"]
+    records = isolated_retests(candidate)
+    records[1]["result"] = "INTENDED_BEHAVIOR"
+    records[1]["control_passed"] = False
+    with pytest.raises(LocalTargetError, match="invalid_retest_evidence"):
+        build_version_matrix(
+            candidate,
+            pinned_version="1.27.3",
+            pinned_commit=PINNED_COMMIT,
+            pinned_digest=PINNED_DIGEST,
+            local_result=local_result("G04"),
+            retest_records=records,
+        )
+
+
+def test_main_identity_is_required_for_affected_or_fixed_status(tmp_path):
+    candidate = candidate_map(source_tree(tmp_path))["SD-G04"]
+    for result in ("AFFECTED", "INTENDED_BEHAVIOR"):
+        records = isolated_retests(candidate)
+        records[1]["result"] = result
+        records[1]["image_id"] = None
+        with pytest.raises(LocalTargetError, match="invalid_retest_evidence"):
+            build_version_matrix(
+                candidate,
+                pinned_version="1.27.3",
+                pinned_commit=PINNED_COMMIT,
+                pinned_digest=PINNED_DIGEST,
+                local_result=local_result("G04"),
+                retest_records=records,
+            )
+
+
+def test_main_build_failure_reason_reaches_report_and_version_matrix(tmp_path):
+    source = source_tree(tmp_path)
+    results = [
+        local_result(f"G{number:02d}", "VERIFIED_LOCAL" if number == 4 else "INTENDED_BEHAVIOR")
+        for number in range(1, 9)
+    ]
+
+    def blocked_retest(candidate):
+        records = isolated_retests(candidate)
+        records[1].update({
+            "result": "RETEST_BLOCKED",
+            "control_passed": False,
+            "blocked_reason": "MAIN_BUILD_FAILED",
+            "bootstrap_status": "not_started",
+            "control_result": "blocked",
+            "candidate_result": "blocked",
+        })
+        return records
+
+    output = run_full_hunt(
+        root=tmp_path,
+        source_root=source,
+        ensure_source=lambda: None,
+        collect_local_results=lambda: (False, results),
+        pinned_version="1.27.3",
+        pinned_commit=PINNED_COMMIT,
+        pinned_digest=PINNED_DIGEST,
+        duplicate_client=CompleteNoMatchResearch(),
+        retest_provider=blocked_retest,
+        run_id="main-build-failed-report",
+    )
+    run = tmp_path / output["reports"]
+    version = json.loads((run / "version-matrix.json").read_text())["results"][0]
+    report = json.loads((run / "report.json").read_text())
+    main = next(item for item in version["targets"] if item["target"] == "main")
+    assert version["status"] == "RETEST_BLOCKED"
+    assert main["status"] == "retest_blocked"
+    assert main["blocked_reason"] == "MAIN_BUILD_FAILED"
+    assert report["main_retest"][0]["blocked_reason"] == "MAIN_BUILD_FAILED"
+    assert next(
+        item for item in report["candidate_outcomes"] if item["candidate_id"] == "SD-G04"
+    )["final_status"] == "NEW_SECURITY_CANDIDATE"
+    assert "MAIN_BUILD_FAILED" in (run / "report.md").read_text()
+
+
+def test_affected_version_summary_uses_selected_main_candidates(tmp_path):
+    source = source_tree(tmp_path)
+    results = [
+        local_result(f"G{number:02d}", "VERIFIED_LOCAL" if number >= 4 else "INTENDED_BEHAVIOR")
+        for number in range(1, 9)
+    ]
+
+    def fixed_main(candidate):
+        records = isolated_retests(candidate)
+        records[1]["result"] = "INTENDED_BEHAVIOR"
+        records[1]["candidate_result"] = "candidate_behavior_not_reproduced"
+        return records
+
+    output = run_full_hunt(
+        root=tmp_path,
+        source_root=source,
+        ensure_source=lambda: None,
+        collect_local_results=lambda: (False, results),
+        pinned_version="1.27.3",
+        pinned_commit=PINNED_COMMIT,
+        pinned_digest=PINNED_DIGEST,
+        duplicate_client=CompleteNoMatchResearch(),
+        retest_provider=fixed_main,
+        run_id="selected-main-summary",
+    )
+    main = next(item for item in output["affected_versions"] if item["target"] == "main")
+    assert main["commit"] == "6" * 40
+    assert main["status"] == "fixed"
+
+
 def test_full_hunt_keeps_source_and_local_blockers_in_report(tmp_path):
     output = run_full_hunt(
         root=tmp_path,
@@ -682,6 +950,9 @@ def test_full_hunt_keeps_source_and_local_blockers_in_report(tmp_path):
         {"stage": "source_discovery", "reason": "SOURCE_ACQUIRE_FAILED"},
         {"stage": "local_validation", "reason": "VALIDATION_BLOCKED"},
     ]
+    assert next(
+        item for item in output["affected_versions"] if item["target"] == "main"
+    )["blocked_reason"] == "MAIN_RUNTIME_FAILED"
     assert (tmp_path / output["json_report"]).is_file()
 
 
@@ -710,7 +981,7 @@ def test_full_hunt_cli_flag_and_summary(tmp_path, monkeypatch, capsys):
                 "affected_versions": [
                     {"target": "pinned", "version": "1.27.3", "status": "tested_locally"},
                     {"target": "latest", "version": "1.28.1", "status": "affected"},
-                    {"target": "main", "version": "main", "status": "affected"},
+                    {"target": "main", "version": None, "commit": "6" * 40, "status": "affected"},
                 ],
                 "reports": ".operator/reports/gitea/full-one",
                 "human_action_required": "Review NEW_SECURITY_CANDIDATE reports before private vendor disclosure.",
@@ -722,6 +993,7 @@ def test_full_hunt_cli_flag_and_summary(tmp_path, monkeypatch, capsys):
     assert "Static candidates: 6" in output
     assert "New security candidates: 3" in output
     assert "- RC03 (KNOWN_DUPLICATE): SD-G06, SD-G07" in output
+    assert "- main 666666666666: affected" in output
     assert "Reports: .operator/reports/gitea/full-one" in output
     with pytest.raises(LocalTargetError, match="invalid_local_action"):
         module.run_local(tmp_path, ["status", "--full"], {"FINDER_TARGET": "gitea"})

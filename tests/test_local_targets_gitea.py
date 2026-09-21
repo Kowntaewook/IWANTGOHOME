@@ -544,11 +544,11 @@ def test_bootstrap_rerun_records_fixtures_roles_tokens_and_activity_buckets(tmp_
                     "name": TEAM,
                     "description": TEAM_DESCRIPTION,
                     "visibility": "public",
-                    "permission": "none",
+                    "permission": "read",
                     "includes_all_repositories": False,
                     "can_create_org_repo": False,
-                    "units": ["repo.code"],
                     "units_map": {"repo.code": "read"},
+                    "units": ["repo.code"],
                 }
                 return LocalResponse(201, self.team, response_shape(self.team))
             if method == "PUT" and path.endswith("/members/" + COLLABORATOR):
