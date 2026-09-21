@@ -134,11 +134,14 @@ class LocalGiteaClient:
         *,
         token: str | None = None,
         identity_label: str | None = None,
+        port: int = 13000,
     ):
         basic_supplied = username is not None or password is not None
         if (username is None) != (password is None) or (basic_supplied and token is not None):
             raise LocalTargetError("local_http_failed")
         if token is not None and not token:
+            raise LocalTargetError("local_http_failed")
+        if isinstance(port, bool) or port not in {13000, 13001, 13002}:
             raise LocalTargetError("local_http_failed")
         self._identity_label = identity_label or username
         self._authorization = None
@@ -148,6 +151,7 @@ class LocalGiteaClient:
         elif token is not None:
             self._authorization = "token " + token
         self.timeout = timeout
+        self.port = port
         self.request_count = 0
 
     @property

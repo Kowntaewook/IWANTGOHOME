@@ -22,6 +22,9 @@ def test_source_zip_allowlist_and_no_overwrite(tmp_path):
         assert 'something_finder/src/ctf_mcp/local_targets/mattermost.py' in names
         assert 'something_finder/src/ctf_mcp/local_targets/gitea.py' in names
         assert 'something_finder/src/ctf_mcp/local_targets/gitea_http.py' in names
+        assert 'something_finder/src/ctf_mcp/local_targets/gitea_hunt.py' in names
+        assert 'something_finder/src/ctf_mcp/local_targets/gitea_discovery.py' in names
+        assert 'something_finder/src/ctf_mcp/local_targets/gitea_full_hunt.py' in names
         assert 'something_finder/config/local-targets/mattermost.json' in names
         assert 'something_finder/config/local-targets/gitea.json' in names
         assert 'something_finder/docs/LOCAL_TARGETS.md' in names

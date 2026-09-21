@@ -121,3 +121,49 @@ PATCH /api/v1/repos/finder-local-repo-owner/finder-local-private-repo
 빈 patch는 field를 변경하거나 repository를 삭제하지 않는다. 401/403/404이면 `INTENDED_BEHAVIOR`다. Exact repository가 200으로 반환될 때만 unexpected authorization으로 `VERIFIED_CANDIDATE`가 될 수 있다.
 
 Gitea evidence는 identity, fixed method/path, expected result, status code, response shape, exact synthetic repository marker boolean, request count와 assessment만 저장한다. Raw response body와 credential은 저장하지 않는다.
+
+## Gitea deterministic hunt
+
+`FINDER_TARGET=gitea IWANTGOHOME local hunt`는 healthy local target의 bootstrap 상태를 확인하고, 필요할 때만 idempotent bootstrap을 수행한 뒤 G01~G08을 모두 실행한다. G04~G08은 candidate별 boolean assertion을 코드 고정 규칙으로 판정한다. Fixture/control 실패는 `BLOCKED_BY_LOCAL_SETUP`, 정상 보안 동작은 `INTENDED_BEHAVIOR`, 불완전한 관찰은 `NEEDS_MORE_EVIDENCE`, 모든 필수 assertion을 만족한 로컬 재현은 `VERIFIED_LOCAL`이다.
+
+`VERIFIED_LOCAL`은 pinned local target에서의 재현 상태이며 외부 제품 취약점 확정이나 disclosure 승인이 아니다. Hunt는 외부 요청이나 제출을 수행하지 않는다. 결과는 매 실행마다 새로운 `.operator/reports/gitea/<run-id>/` 아래 JSON, Markdown, localhost 고정 GET-only PoC로 저장된다. Report에는 status, count, marker와 evidence ID만 포함하며 credential과 raw response body는 포함하지 않는다.
+
+Verified candidate는 source helper 기준 `root_cause_cluster`로만 묶는다. G06/G07은 shared user/organization repository count path, G08은 team repository count path로 별도 취급한다. 사람은 생성된 최종 report를 검토한 뒤 외부 disclosure 여부를 결정한다.
+
+## Gitea full hunt
+
+`FINDER_TARGET=gitea IWANTGOHOME local hunt --full`은 manifest의 pinned source가 없으면 공식 저장소에서 고정 commit을 준비한다. Go source를 정해진 파일·용량 한도 안에서 읽고 route registration, 상속 middleware, handler, helper/model query 호출을 연결한다. Keyword 한 개만으로 후보를 통과시키지 않으며 각 후보에 source file SHA-256과 다음 boolean fact를 남긴다.
+
+```text
+route_exists
+handler_resolved
+model_query_resolved
+trace_edges_resolved
+authorization_middleware_present
+viewer_binding_present
+owner_repo_binding_present
+response_refilter_present
+visibility_helper_present
+count_before_filter
+candidate_pattern_observed
+```
+
+정적 상태는 `REJECTED_STATIC`, `NEEDS_LOCAL_VALIDATION`, `BLOCKED_STATIC`이다. Actions run/job처럼 repository ID binding이 handler에서 확인되면 정적으로 reject한다. 안전한 G04~G08 GET control/probe에 정확히 연결되는 후보만 자동 시나리오를 만들며 그 외 후보는 `NEEDS_MANUAL_SCENARIO`로 남긴다. 자동 시나리오는 `127.0.0.1:13000`, `finder-local-*`, bootstrap-only mutation, DB 직접 수정 금지와 고정 request budget을 강제한다.
+
+로컬에서 `VERIFIED_LOCAL`인 후보만 공개 duplicate research 대상으로 삼는다. 외부 연결은 credential 없는 GET으로 `api.github.com`과 `services.nvd.nist.gov`에만 허용하며 GitHub issues, merged PR 검색 결과, public advisories, Gitea releases와 NVD를 조회한다. Endpoint와 source function/query fact가 함께 맞아야 duplicate match가 된다. `NO_PUBLIC_DUPLICATE_FOUND`는 신규 취약점 확정으로 취급하지 않는다.
+
+Latest/main 재검증은 pinned runtime과 다른 loopback endpoint 및 runtime ID를 가진 evidence만 인정한다. 현재 supported latest stable인 1.27.3은 immutable image digest를 별도 Compose project와 `127.0.0.1:13001`에서 실행하고 별도 bootstrap, secret store, evidence directory를 사용한다. Version, commit, image digest, control 결과가 모두 있어야 affected/fixed 판정을 만들 수 있다. 검증된 immutable main image와 HEAD commit 쌍이 없거나 격리 runtime을 시작할 수 없으면 `RETEST_BLOCKED`이고, 외부 Gitea instance를 대신 테스트하지 않는다.
+
+Full report는 새 `.operator/reports/gitea/<run-id>/`에 다음 구조로 append-only 생성된다.
+
+```text
+report.md
+report.json
+findings/RCxx.md
+findings/RCxx.json
+poc/RCxx.py
+duplicate-research.json
+version-matrix.json
+```
+
+`NEW_SECURITY_CANDIDATE`는 deterministic local reproduction, 성공한 control, latest 또는 main 영향, 완료된 공개 검색에서 일치 없음, report evidence가 모두 있는 경우에만 사용한다. Vendor-confirmed vulnerability를 뜻하지 않으며 외부 제출은 수행하지 않는다.

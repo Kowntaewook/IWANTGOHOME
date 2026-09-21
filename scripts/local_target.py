@@ -18,6 +18,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="IWANTGOHOME local", add_help=True)
     parser.add_argument("action", choices=sorted(ACTIONS))
     parser.add_argument("candidate", nargs="?")
+    parser.add_argument("--full", action="store_true", dest="full_hunt")
     return parser
 
 
@@ -29,6 +30,8 @@ def run_local(root: Path, args: Sequence[str], env: dict[str, str] | None = None
         options = _parser().parse_args(list(args))
     except SystemExit:
         raise LocalTargetError("invalid_local_action") from None
+    if options.full_hunt and options.action != "hunt":
+        raise LocalTargetError("invalid_local_action")
     if options.action != "validate" and options.candidate is not None:
         raise LocalTargetError("invalid_local_action")
     adapter = load_adapter(root, env.get("FINDER_TARGET"))
@@ -47,7 +50,10 @@ def run_local(root: Path, args: Sequence[str], env: dict[str, str] | None = None
         for result in adapter.validate(options.candidate):
             _print_validation(result)
     elif options.action == "hunt":
-        _print_hunt(adapter.hunt())
+        if options.full_hunt:
+            _print_full_hunt(adapter.full_hunt())
+        else:
+            _print_hunt(adapter.hunt())
     elif options.action == "stop":
         _print_mapping(adapter.stop())
     elif options.action == "reset":
@@ -93,6 +99,30 @@ def _print_hunt(result: dict) -> None:
     print("Root-cause clusters:")
     for cluster in result["root_cause_clusters"]:
         print(f"- {cluster['id']}: {', '.join(cluster['candidates'])}")
+    print("")
+    print(f"Reports: {result['reports']}")
+    print("")
+    print(f"Human action required: {result['human_action_required']}")
+
+
+def _print_full_hunt(result: dict) -> None:
+    print(f"Target: {_safe(result['target'])}")
+    print("")
+    for key in (
+        "static_candidates", "rejected_statically", "validated_locally",
+        "known_duplicates", "possible_duplicates", "new_security_candidates",
+        "needs_manual_scenario",
+    ):
+        print(f"{_label(key)}: {_safe(result[key])}")
+    print("")
+    print("Root-cause clusters:")
+    for cluster in result["root_cause_clusters"]:
+        print(f"- {cluster['id']} ({cluster['status']}): {', '.join(cluster['candidates'])}")
+    print("")
+    print("Affected versions:")
+    for target in result["affected_versions"]:
+        version = target["version"] or "not available"
+        print(f"- {target['target']} {version}: {target['status']}")
     print("")
     print(f"Reports: {result['reports']}")
     print("")

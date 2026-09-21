@@ -92,6 +92,9 @@ class LocalTargetAdapter(ABC):
     def hunt(self) -> dict[str, Any]:
         raise LocalTargetError("HUNT_UNAVAILABLE")
 
+    def full_hunt(self) -> dict[str, Any]:
+        raise LocalTargetError("FULL_HUNT_UNAVAILABLE")
+
 
 def load_manifest(root: Path, target_id: str) -> LocalTargetManifest:
     if not TARGET_ID.fullmatch(target_id):

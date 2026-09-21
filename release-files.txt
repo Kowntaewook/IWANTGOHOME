@@ -113,6 +113,9 @@ src/ctf_mcp/local_targets/__init__.py
 src/ctf_mcp/local_targets/base.py
 src/ctf_mcp/local_targets/gitea.py
 src/ctf_mcp/local_targets/gitea_http.py
+src/ctf_mcp/local_targets/gitea_hunt.py
+src/ctf_mcp/local_targets/gitea_discovery.py
+src/ctf_mcp/local_targets/gitea_full_hunt.py
 src/ctf_mcp/local_targets/http.py
 src/ctf_mcp/local_targets/mattermost.py
 src/ctf_mcp/native_tools.py

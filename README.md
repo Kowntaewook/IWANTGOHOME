@@ -69,6 +69,8 @@ FINDER_TARGET=gitea IWANTGOHOME local bootstrap
 FINDER_TARGET=gitea IWANTGOHOME local validate G01
 FINDER_TARGET=gitea IWANTGOHOME local validate G02
 FINDER_TARGET=gitea IWANTGOHOME local validate G03
+FINDER_TARGET=gitea IWANTGOHOME local hunt
+FINDER_TARGET=gitea IWANTGOHOME local hunt --full
 FINDER_TARGET=gitea IWANTGOHOME local status
 FINDER_TARGET=gitea IWANTGOHOME local stop
 FINDER_TARGET=gitea IWANTGOHOME local reset
@@ -79,3 +81,5 @@ Docker와 local process는 host CLI의 fixed action만 실행합니다. Codex/an
 Mattermost runtime은 `mattermostdevelopment/mattermost-enterprise-edition:d283cc6` (`linux/amd64`) digest-pinned image만 사용하며 host source-build fallback을 사용하지 않습니다. Delegated role bootstrap에는 유효한 Enterprise license 또는 공식 trial이 별도로 필요합니다.
 
 Gitea runtime은 `docker.gitea.com/gitea:1.27.3-rootless@sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2`만 사용하고 `127.0.0.1:13000`에만 publish합니다. SSH port는 publish하지 않습니다.
+
+`local hunt --full`은 pinned source에서 route, middleware, handler, query 연결을 추적해 후보를 생성하고 기존 G01~G08 control/probe로 안전하게 검증할 수 있는 후보만 자동 실행합니다. 로컬 재현 뒤 공개 GitHub/GHSA/NVD/release/PR 자료에서 중복을 조사하고, 별도 localhost runtime evidence가 있을 때 latest/main 결과를 판정합니다. 격리 runtime이 없으면 임의 서버를 대신 시험하지 않고 `RETEST_BLOCKED`로 기록합니다.

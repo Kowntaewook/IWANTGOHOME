@@ -96,21 +96,22 @@ REQUEST_BUDGETS = {
     "G07": 2,
     "G08": 2,
 }
-COMPOSE = f"""name: {COMPOSE_PROJECT}
+def _compose_text(project: str, image: str, port: int) -> str:
+    return f"""name: {project}
 services:
   gitea:
-    image: {GITEA_IMAGE_REFERENCE}
+    image: {image}
     restart: "no"
     environment:
       GITEA__database__DB_TYPE: sqlite3
       GITEA__database__PATH: /var/lib/gitea/data/gitea.db
-      GITEA__server__ROOT_URL: http://127.0.0.1:13000/
+      GITEA__server__ROOT_URL: http://127.0.0.1:{port}/
       GITEA__server__HTTP_PORT: "3000"
       GITEA__server__DISABLE_SSH: "true"
       GITEA__security__INSTALL_LOCK: "true"
       GITEA__service__DISABLE_REGISTRATION: "true"
     ports:
-      - 127.0.0.1:13000:3000
+      - 127.0.0.1:{port}:3000
     volumes:
       - gitea-data:/var/lib/gitea
       - gitea-config:/etc/gitea
@@ -122,6 +123,9 @@ volumes:
 networks:
   local-target: {{}}
 """
+
+
+COMPOSE = _compose_text(COMPOSE_PROJECT, GITEA_IMAGE_REFERENCE, 13000)
 
 
 class GiteaAdapter(LocalTargetAdapter):
@@ -139,18 +143,44 @@ class GiteaAdapter(LocalTargetAdapter):
         runner: FixedCommandRunner | None = None,
         client_factory: Callable[..., LocalGiteaClient] = LocalGiteaClient,
         sleep: Callable[[float], None] = time.sleep,
+        runtime_variant: str = "pinned",
+        runtime_port: int = 13000,
+        runtime_version: str = GITEA_VERSION,
+        runtime_image_reference: str = GITEA_IMAGE_REFERENCE,
+        runtime_image_digest: str = GITEA_IMAGE_DIGEST,
+        compose_project: str = COMPOSE_PROJECT,
     ):
+        if (runtime_variant not in {"pinned", "latest"}
+                or runtime_port not in {13000, 13001}
+                or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", runtime_version)
+                or not re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_image_digest)
+                or not runtime_image_reference.endswith("@" + runtime_image_digest)
+                or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", compose_project)):
+            raise LocalTargetError("invalid_local_runtime_profile")
         self.root = root.resolve()
         self.manifest = manifest
         self.runner = runner or FixedCommandRunner()
-        self.client_factory = client_factory
+        if client_factory is LocalGiteaClient and runtime_port != 13000:
+            self.client_factory = lambda *args, **kwargs: LocalGiteaClient(
+                *args, port=runtime_port, **kwargs
+            )
+        else:
+            self.client_factory = client_factory
         self.sleep = sleep
+        self.runtime_variant = runtime_variant
+        self.runtime_port = runtime_port
+        self.runtime_version = runtime_version
+        self.runtime_image_reference = runtime_image_reference
+        self.runtime_image_digest = runtime_image_digest
+        self.compose_project = compose_project
+        self.compose_text = _compose_text(compose_project, runtime_image_reference, runtime_port)
         self.operator = self.root / ".operator"
         self.targets_root = self.operator / "targets"
         self.target_root = self.targets_root / self.target_id
-        self.runtime_root = self.operator / "local-runtime" / self.target_id
-        self.secret_root = self.operator / "local-secrets" / self.target_id
-        self.evidence_root = self.operator / "local-evidence" / self.target_id
+        runtime_key = self.target_id if runtime_variant == "pinned" else "gitea-retest-" + runtime_variant
+        self.runtime_root = self.operator / "local-runtime" / runtime_key
+        self.secret_root = self.operator / "local-secrets" / runtime_key
+        self.evidence_root = self.operator / "local-evidence" / runtime_key
         self.compose_file = self.runtime_root / "compose.yaml"
         self.bootstrap_file = self.runtime_root / "bootstrap.json"
         self.secrets_file = self.secret_root / "secrets.json"
@@ -256,9 +286,9 @@ class GiteaAdapter(LocalTargetAdapter):
     def _write_runtime_files(self) -> None:
         secure_directory(self.runtime_root)
         if not self.compose_file.exists():
-            self.compose_file.write_text(COMPOSE, encoding="utf-8")
+            self.compose_file.write_text(self.compose_text, encoding="utf-8")
             os.chmod(self.compose_file, 0o600)
-        elif self.compose_file.is_symlink() or self.compose_file.read_text(encoding="utf-8") != COMPOSE:
+        elif self.compose_file.is_symlink() or self.compose_file.read_text(encoding="utf-8") != self.compose_text:
             raise LocalTargetError("unsafe_local_runtime")
 
     def _docker_env(self) -> dict[str, str]:
@@ -269,9 +299,9 @@ class GiteaAdapter(LocalTargetAdapter):
             if (self.runtime_root.is_symlink() or self.compose_file.is_symlink()
                     or not self.compose_file.is_file()):
                 raise LocalTargetError("unsafe_local_runtime")
-            if self.compose_file.stat().st_size != len(COMPOSE.encode("utf-8")):
+            if self.compose_file.stat().st_size != len(self.compose_text.encode("utf-8")):
                 raise LocalTargetError("unsafe_local_runtime")
-            if self.compose_file.read_text(encoding="utf-8") != COMPOSE:
+            if self.compose_file.read_text(encoding="utf-8") != self.compose_text:
                 raise LocalTargetError("unsafe_local_runtime")
         except LocalTargetError:
             raise
@@ -279,7 +309,7 @@ class GiteaAdapter(LocalTargetAdapter):
             raise LocalTargetError("unsafe_local_runtime") from None
         try:
             return self.runner.run(
-                ["docker", "compose", "-p", COMPOSE_PROJECT, "-f", str(self.compose_file), *tail],
+                ["docker", "compose", "-p", self.compose_project, "-f", str(self.compose_file), *tail],
                 cwd=self.runtime_root,
                 timeout=timeout,
                 env=self._docker_env(),
@@ -291,7 +321,7 @@ class GiteaAdapter(LocalTargetAdapter):
     def _inspect_image(self, *, timeout: float, allow_missing: bool) -> dict[str, str] | None:
         try:
             result = self.runner.run(
-                ["docker", "image", "inspect", GITEA_IMAGE_REFERENCE],
+                ["docker", "image", "inspect", self.runtime_image_reference],
                 cwd=self.root,
                 timeout=timeout,
                 env=self._docker_env(),
@@ -303,11 +333,11 @@ class GiteaAdapter(LocalTargetAdapter):
             digests = metadata.get("RepoDigests")
             image_id = metadata.get("Id")
             if (not isinstance(digests, list)
-                    or not any(isinstance(item, str) and item.endswith("@" + GITEA_IMAGE_DIGEST) for item in digests)
+                    or not any(isinstance(item, str) and item.endswith("@" + self.runtime_image_digest) for item in digests)
                     or not isinstance(image_id, str)
                     or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id)):
                 raise LocalTargetError("IMAGE_MISMATCH")
-            return {"digest": GITEA_IMAGE_DIGEST, "id": image_id}
+            return {"digest": self.runtime_image_digest, "id": image_id}
         except LocalTargetError:
             raise
         except (OSError, subprocess.SubprocessError, ValueError, TypeError):
@@ -321,7 +351,7 @@ class GiteaAdapter(LocalTargetAdapter):
             progress("Local target: pulling exact Gitea image")
             try:
                 self.runner.run(
-                    ["docker", "pull", GITEA_IMAGE_REFERENCE],
+                    ["docker", "pull", self.runtime_image_reference],
                     cwd=self.root,
                     timeout=1800,
                     env=self._docker_env(),
@@ -358,11 +388,11 @@ class GiteaAdapter(LocalTargetAdapter):
             config = value[0].get("Config")
             labels = config.get("Labels") if isinstance(config, dict) else None
             state = value[0].get("State")
-            if not isinstance(labels, dict) or labels.get("com.docker.compose.project") != COMPOSE_PROJECT:
+            if not isinstance(labels, dict) or labels.get("com.docker.compose.project") != self.compose_project:
                 raise LocalTargetError("TARGET_START_FAILED")
             if labels.get("com.docker.compose.service") != "gitea":
                 raise LocalTargetError("TARGET_START_FAILED")
-            if config.get("Image") != GITEA_IMAGE_REFERENCE or value[0].get("Image") != image["id"]:
+            if config.get("Image") != self.runtime_image_reference or value[0].get("Image") != image["id"]:
                 raise LocalTargetError("IMAGE_MISMATCH")
             if not isinstance(state, dict) or state.get("Running") is not True:
                 raise LocalTargetError("TARGET_START_FAILED")
@@ -379,6 +409,12 @@ class GiteaAdapter(LocalTargetAdapter):
             raise LocalTargetError("IMAGE_MISMATCH")
         return match.group(1)
 
+    def _validate_runtime_version(self, output: str) -> str:
+        match = re.search(r"\bgitea version ([0-9]+\.[0-9]+\.[0-9]+)\b", output, re.IGNORECASE)
+        if match is None or match.group(1) != self.runtime_version:
+            raise LocalTargetError("IMAGE_MISMATCH")
+        return match.group(1)
+
     def _probe_container_version(self, container_id: str) -> str:
         try:
             result = self.runner.run(
@@ -389,7 +425,7 @@ class GiteaAdapter(LocalTargetAdapter):
             )
         except (OSError, subprocess.SubprocessError):
             raise LocalTargetError("IMAGE_MISMATCH") from None
-        return self._validate_version(result.stdout + "\n" + result.stderr)
+        return self._validate_runtime_version(result.stdout + "\n" + result.stderr)
 
     def _verify_owned_gitea_container(self, *, probe_version: bool = True) -> str | None:
         container_id = self._owned_container_id()
@@ -535,13 +571,13 @@ class GiteaAdapter(LocalTargetAdapter):
             "expected_commit": self.pinned_revision,
             "actual_commit": source["actual_commit"],
             "source_status": source["source_status"],
-            "gitea_image": GITEA_IMAGE,
-            "expected_image_digest": GITEA_IMAGE_DIGEST,
+            "gitea_image": self.runtime_image_reference.split("@", 1)[0],
+            "expected_image_digest": self.runtime_image_digest,
             "image_digest": image["digest"] if image else None,
             "image_version": version,
             "gitea_container": container_state,
             "health": health["status"],
-            "host_endpoint": "http://127.0.0.1:13000",
+            "host_endpoint": f"http://127.0.0.1:{self.runtime_port}",
             "synthetic_bootstrap_status": "ready" if _valid_bootstrap_state(bootstrap) else "not_ready",
         }
 
@@ -1481,7 +1517,7 @@ class GiteaAdapter(LocalTargetAdapter):
         }
         return [methods[value]() for value in selected]
 
-    def hunt(self) -> dict[str, Any]:
+    def _collect_hunt_results(self) -> tuple[bool, list[dict[str, Any]]]:
         current = self.status()
         if current.get("health") != "healthy":
             raise LocalTargetError("VALIDATION_BLOCKED")
@@ -1520,6 +1556,10 @@ class GiteaAdapter(LocalTargetAdapter):
                         "assertions": assertions,
                     },
                 ))
+        return bootstrapped, results
+
+    def hunt(self) -> dict[str, Any]:
+        bootstrapped, results = self._collect_hunt_results()
         artifacts = create_hunt_reports(
             self.root,
             target=self.target_id,
@@ -1546,6 +1586,102 @@ class GiteaAdapter(LocalTargetAdapter):
             "external_submission_performed": False,
             "results": results,
         }
+
+    def full_hunt(self) -> dict[str, Any]:
+        from .gitea_full_hunt import PublicResearchClient, run_full_hunt
+
+        def ensure_source() -> None:
+            state = self._source_details(2)
+            if not state["prepared"]:
+                self.prepare()
+            else:
+                self._require_source()
+
+        latest_adapter: GiteaAdapter | None = None
+        latest_results: dict[str, dict[str, Any]] | None = None
+        public_research = PublicResearchClient()
+        latest_identity_checked = False
+        latest_is_supported = False
+
+        def retest_provider(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+            nonlocal latest_adapter, latest_results, latest_identity_checked, latest_is_supported
+            if shutil.which("docker") is None:
+                return []
+            if not latest_identity_checked:
+                latest_identity_checked = True
+                try:
+                    latest_is_supported = public_research.latest_release_version() == GITEA_VERSION
+                except LocalTargetError:
+                    latest_is_supported = False
+            if not latest_is_supported:
+                return []
+            if latest_results is None:
+                latest_adapter = GiteaAdapter(
+                    self.root,
+                    self.manifest,
+                    runner=self.runner,
+                    sleep=self.sleep,
+                    runtime_variant="latest",
+                    runtime_port=13001,
+                    runtime_version=GITEA_VERSION,
+                    runtime_image_reference=GITEA_IMAGE_REFERENCE,
+                    runtime_image_digest=GITEA_IMAGE_DIGEST,
+                    compose_project="iwantgohome-local-gitea-latest",
+                )
+                try:
+                    latest_adapter.up(progress=lambda _: None)
+                    _, results = latest_adapter._collect_hunt_results()
+                    latest_results = {item["candidate"]: item for item in results}
+                except LocalTargetError:
+                    latest_results = {}
+            baseline = candidate.get("baseline_candidate")
+            result = latest_results.get(baseline) if latest_results else None
+            if result is None:
+                return []
+            local_status = result.get("status")
+            if local_status == "VERIFIED_LOCAL":
+                retest_status = "AFFECTED"
+            elif local_status == "INTENDED_BEHAVIOR":
+                retest_status = "INTENDED_BEHAVIOR"
+            else:
+                retest_status = "RETEST_BLOCKED"
+            record = {
+                "target": "latest",
+                "version": GITEA_VERSION,
+                "commit": self.pinned_revision,
+                "digest": GITEA_IMAGE_DIGEST,
+                "runtime_id": "gitea-latest-13001",
+                "endpoint": "127.0.0.1:13001",
+                "isolated": True,
+                "result": retest_status,
+                "control_passed": bool(result.get("assertions", {}).get("control_passed")),
+                "evidence_ids": [
+                    result[key] for key in ("evidence", "reassessment")
+                    if isinstance(result.get(key), str)
+                ],
+            }
+            if retest_status == "RETEST_BLOCKED":
+                record["blocked_reason"] = "latest_local_validation_incomplete"
+            return [record]
+
+        try:
+            return run_full_hunt(
+                root=self.root,
+                source_root=self.target_root,
+                ensure_source=ensure_source,
+                collect_local_results=self._collect_hunt_results,
+                pinned_version=GITEA_VERSION,
+                pinned_commit=self.pinned_revision,
+                pinned_digest=GITEA_IMAGE_DIGEST,
+                duplicate_client=public_research,
+                retest_provider=retest_provider,
+            )
+        finally:
+            if latest_adapter is not None:
+                try:
+                    latest_adapter.stop()
+                except LocalTargetError:
+                    pass
 
 
 def _password() -> str:
