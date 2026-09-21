@@ -1,52 +1,46 @@
-# 로컬 검증
+# Local Validation
 
-로컬 검증은 소스코드 분석에서 생성된 후보를 허가된 실행 환경에서 확인하는 과정입니다.
+Local validation은 선택한 installed target adapter와 adapter가 만든 synthetic resource만 대상으로 한다. 외부 임의 target, 발견한 URL, production account로 validation 범위를 넓히지 않는다.
 
-기본 검증 순서는 다음과 같습니다.
+## Required gates
 
-    소스 근거 확인
-    → 실행 환경 확인
-    → 정상 동작 확인
-    → 의심 동작 확인
-    → 보안 조건 비교
-    → 결과 저장
+Adapter는 validation 전에 다음을 확인한다.
 
-## 자동 검증 시나리오
+- source assertion과 immutable revision identity
+- owned isolated runtime과 loopback destination
+- synthetic fixture identity와 expected control body
+- candidate별 method/path allowlist
+- bounded request count
+- read-only probe 또는 명시적으로 허용된 defensive action
+- secret-free evidence destination
 
-근거가 충분한 후보는 자동 검증 시나리오로 변환할 수 있습니다.
+Control이 실패하거나 fixture/source assertion이 맞지 않으면 candidate를 검증된 것으로 판정하지 않는다. Status code 하나, empty response 또는 404만으로 visibility나 authorization 위반을 확정하지 않는다. Destructive mutation, credential guessing, arbitrary command와 외부 redirect는 차단한다.
 
-범용 엔진은 다음과 같은 유형을 처리할 수 있습니다.
+## Evidence
 
-- 본문과 개수 정보의 불일치
-- 직접 접근과 목록 접근의 권한 불일치
-- 공개 범위와 제한 범위의 처리 불일치
+Local evidence는 target, immutable source/runtime identity, candidate ID, identity label, fixed method/path, expected observation, response shape, control/probe assertion, request count와 assessment만 보존한다. 다음 값은 저장하지 않는다.
 
-실제 요청 경로와 검증 자원은 대상별 모듈에서 제공합니다.
+```text
+password
+token
+cookie
+authorization header
+raw credentialed response
+personal data
+local absolute path
+```
 
-근거가 부족하거나 안전하게 검증할 수 없는 후보는 수동 검토 상태로 유지합니다.
+Evidence와 reassessment는 append-only artifact로 만들며 scanner severity나 model confidence만으로 `CONFIRMED`를 생성하지 않는다.
 
-## 안전 조건
+## Full hunt and scenarios
 
-- 허가된 환경만 사용
-- 요청 횟수 제한
-- 파괴적인 검증 차단
-- 비밀정보 기록 금지
-- 외부 주소로의 임의 연결 차단
-- 정상 동작 실패 시 취약 판정 금지
-- 상태 코드 하나만으로 취약 판정 금지
+Core의 `ScenarioPlan`은 identity/resource 요구사항, fixture capability, control/probe, invariant, request budget, source assertion과 cleanup 조건만 표현한다. 제품별 route와 object mapping은 adapter가 제공한다.
 
-## 결과
+Source fact가 부족하면 `SCENARIO_NOT_GENERATABLE`, capability나 runtime이 없으면 `SCENARIO_BLOCKED`, safety rule을 어기면 `SCENARIO_UNSAFE`다. Control 성공과 deterministic body-based invariant가 모두 확인된 결과만 local verification으로 전달한다.
 
-검증 결과에는 다음 정보가 포함될 수 있습니다.
+Duplicate research와 version retest는 local verification 뒤에 실행한다. `NO_PUBLIC_DUPLICATE_FOUND`는 novelty confirmation이 아니다. Version bisect의 `BLOCKED`와 `INCONCLUSIVE` revision은 safe/fixed로 취급하지 않는다.
 
-- 후보 식별자
-- 소스 근거
-- 정상 동작 결과
-- 의심 동작 결과
-- 요청 횟수
-- 판정
-- 버전별 결과
-- 기존 공개 취약점 중복 조사
-- 근거 식별자
+## Disclosure boundary
 
-자동 분석 결과는 사람이 최종 검토해야 하는 보안 연구 결과입니다.
+Local validation, full hunt, bisect와 disclosure pack 생성은 자동 vendor submission 권한을 만들지 않는다. Email, issue, advisory와 vendor API 제출은 제공하지 않는다. 생성된 보고서와 checklist를 사람이 검토하고 별도의 disclosure 정책과 공개 시점을 결정한다.
+

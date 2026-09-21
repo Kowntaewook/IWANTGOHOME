@@ -84,6 +84,10 @@ class FullHuntTargetAdapter(Protocol):
 
     def duplicate_queries(self, candidate: dict[str, Any]) -> list[DuplicateQuery]: ...
 
+    def scenario_bindings(self) -> tuple[Any, ...]: ...
+
+    def version_provider(self, candidate_id: str) -> Any: ...
+
     def duplicate_research(self, candidate: dict[str, Any]) -> dict[str, Any] | None: ...
 
     def version_retest(
@@ -158,7 +162,7 @@ def normalized_outcome(
             ],
             "blocked_reason": local_validation.get("blocked_reason"),
         }
-    return {
+    outcome = {
         "target": target,
         "candidate_id": candidate["candidate_id"],
         "root_cause_id": root_cause_id,
@@ -170,3 +174,9 @@ def normalized_outcome(
         "evidence": candidate.get("evidence", []),
         "provenance": candidate.get("provenance", {}),
     }
+    for optional in (
+        "bisect", "disclosure_pack", "release_monitor", "latest_retest", "regression",
+    ):
+        if optional in candidate:
+            outcome[optional] = candidate[optional]
+    return outcome

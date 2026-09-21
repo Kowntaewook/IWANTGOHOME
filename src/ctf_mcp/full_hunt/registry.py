@@ -25,6 +25,3 @@ class FullHuntRegistry:
     @property
     def targets(self) -> frozenset[str]:
         return frozenset(self._factories)
-
-
-FULL_HUNT_REGISTRY = FullHuntRegistry()

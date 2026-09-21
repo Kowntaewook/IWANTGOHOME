@@ -186,7 +186,7 @@ def commands(action, extra, env):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout", "perf", "local"])
+    parser.add_argument("action", nargs="?", default="run", choices=["build", "login", "logout", "switch", "run", "resume", "status", "doctor", "test", "stop", "approve", "revoke", "install", "session-import", "program", "plan", "scout", "perf", "local", "target", "bisect", "disclosure", "monitor", "regression"])
     args, extra = parser.parse_known_args()
     if args.action == "install":
         subprocess.run([sys.executable, str(ROOT / "scripts/install_command.py"), *extra], check=True)
@@ -200,6 +200,46 @@ def main():
             print(error.code, file=sys.stderr)
             if error.code == "ROLE_UNAVAILABLE":
                 print("BLOCKED_BY_LOCAL_SETUP reason=required_supported_role_not_constructible", file=sys.stderr)
+            raise SystemExit(2)
+    if args.action == "target":
+        from ctf_mcp.target_cli import run_target
+        from ctf_mcp.targets import TargetPluginError
+        try:
+            raise SystemExit(run_target(ROOT, extra))
+        except TargetPluginError as error:
+            print(error.code, file=sys.stderr)
+            raise SystemExit(2)
+    if args.action == "bisect":
+        from ctf_mcp.bisect_cli import run_bisect
+        from ctf_mcp.local_targets import LocalTargetError
+        try:
+            raise SystemExit(run_bisect(ROOT, extra, os.environ))
+        except LocalTargetError as error:
+            print(error.code, file=sys.stderr)
+            raise SystemExit(2)
+    if args.action == "disclosure":
+        from ctf_mcp.disclosure_cli import run_disclosure
+        from ctf_mcp.local_targets import LocalTargetError
+        try:
+            raise SystemExit(run_disclosure(ROOT, extra, os.environ))
+        except LocalTargetError as error:
+            print(error.code, file=sys.stderr)
+            raise SystemExit(2)
+    if args.action == "monitor":
+        from ctf_mcp.monitor_cli import run_monitor
+        from ctf_mcp.local_targets import LocalTargetError
+        try:
+            raise SystemExit(run_monitor(ROOT, extra, os.environ))
+        except LocalTargetError as error:
+            print(error.code, file=sys.stderr)
+            raise SystemExit(2)
+    if args.action == "regression":
+        from ctf_mcp.regression_cli import run_regression
+        from ctf_mcp.local_targets import LocalTargetError
+        try:
+            raise SystemExit(run_regression(ROOT, extra, os.environ))
+        except LocalTargetError as error:
+            print(error.code, file=sys.stderr)
             raise SystemExit(2)
     if not shutil.which("docker"):
         print("Docker CLI not found. Install Docker Engine + Compose v2 (Linux) or Docker Desktop (macOS/Windows). No services or data were changed.", file=sys.stderr)

@@ -256,7 +256,7 @@ def test_generic_fake_target_runs_scenario_before_duplicate_and_retest(tmp_path)
 def test_generic_core_contains_no_product_specific_vocabulary():
     root = Path(__file__).resolve().parents[1] / "src/ctf_mcp/full_hunt"
     raw = "\n".join(path.read_text().lower() for path in root.glob("*.py"))
-    for forbidden in ("vendor_specific_marker", "/vendor/private/api/", "vendor_permission_marker"):
+    for forbidden in ("acme_product", "/vendor/api/", "vendor_only_token", "vendor.repo.model"):
         assert forbidden not in raw
 
 

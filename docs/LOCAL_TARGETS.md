@@ -1,27 +1,70 @@
-# 로컬 대상 구조
+# Local Target Harness
 
-IWANTGOHOME은 특정 제품에 종속되지 않는 대상 모듈 구조를 사용합니다.
+Local Target Harness는 사용자가 소유하거나 실행을 허가받은 self-hosted target을 격리된 host 환경에서 재현하기 위한 lifecycle interface다. 공개 Core는 target 이름, repository, API route, fixture, image와 build 방법을 포함하지 않는다. 대상 구현은 [Target SDK](TARGET_SDK.md)의 Python entry point로 설치한다.
 
-대상 모듈은 범용 분석 엔진에 연결되어 다음 과정을 구현할 수 있습니다.
+## Trust boundary
 
-    소스 준비
-    → 실행 환경 준비
-    → 검증용 데이터 구성
-    → 후보 검증
-    → 전체 분석
-    → 상태 확인
-    → 종료 또는 초기화
+`scripts/control.py`는 `local` subcommand를 host에서 처리하고 선택된 `TargetAdapter`의 고정 method만 호출한다.
 
-각 대상 모듈은 필요에 따라 다음 기능을 제공합니다.
+```text
+FINDER_TARGET=<id> IWANTGOHOME local <fixed action>
+  -> scripts/control.py
+  -> TargetRegistry
+  -> selected installed entry point
+  -> adapter-owned fixed source/runtime/API operations
+```
 
-- 소스와 버전 확인
-- 격리된 실행 환경 준비
-- 검증용 사용자와 자원 생성
-- 정상 동작 구성
-- 의심 동작 구성
-- 버전별 재검증
-- 결과와 근거 저장
+Registry는 installed package metadata만 탐색한다. 임의 directory, current working directory, recursive module scan, `PYTHONPATH` 후보 검색을 수행하지 않는다. `target list`와 `target info`는 target module을 import하지 않는다. `target doctor`는 선택된 module의 API version과 interface만 확인하고 lifecycle method나 network validation을 실행하지 않는다.
 
-공개 코어에는 특정 제품용 대상 모듈을 기본 포함하지 않습니다.
+Adapter는 source checkout, runtime과 secret/evidence namespace를 target ID 아래에서 분리해야 한다.
 
-새로운 대상은 공통 인터페이스를 구현하여 연결할 수 있습니다.
+```text
+.operator/targets/<target>/
+.operator/local-runtime/<target>/
+.operator/local-secrets/<target>/
+.operator/local-evidence/<target>/
+```
+
+`.operator/` data는 public source package에 포함되지 않는다. Adapter는 Codex auth, program approval, browser session, 다른 target secret과 Docker socket을 target container에 mount하면 안 된다.
+
+## CLI
+
+```bash
+IWANTGOHOME target list
+IWANTGOHOME target info <target>
+IWANTGOHOME target doctor <target>
+
+FINDER_TARGET=<target> IWANTGOHOME local prepare
+FINDER_TARGET=<target> IWANTGOHOME local up
+FINDER_TARGET=<target> IWANTGOHOME local status
+FINDER_TARGET=<target> IWANTGOHOME local bootstrap
+FINDER_TARGET=<target> IWANTGOHOME local validate <candidate>
+FINDER_TARGET=<target> IWANTGOHOME local hunt --full
+FINDER_TARGET=<target> IWANTGOHOME local stop
+FINDER_TARGET=<target> IWANTGOHOME local reset
+```
+
+허용되지 않은 action과 candidate는 실행 전에 거절한다. Exact candidate allowlist, source identity, runtime ownership, API destination과 method/path 범위는 adapter가 고정한다.
+
+## Adapter responsibilities
+
+Adapter는 다음 항목을 제공하고 검증한다.
+
+- immutable source revision과 repository identity
+- isolated runtime identity와 localhost endpoint
+- idempotent synthetic bootstrap
+- candidate별 control/probe와 request budget
+- secret-free append-only evidence
+- deterministic cleanup과 owned-resource reset
+- full-hunt discovery, duplicate research와 version provider capability
+
+Core의 `FullHuntEngine`은 제품 route나 credential 형식을 알지 않는다. Version boundary search도 source checkout, build cache, bootstrap과 validation을 adapter provider에 위임한다.
+
+## Stop and reset
+
+`stop`은 선택된 target의 owned service만 정지해야 한다. Source, volume, secrets, immutable evidence와 승인 자료를 자동 삭제하지 않는다. `reset`은 사용자가 명시적으로 호출한 경우에만 adapter가 소유한 synthetic state를 제거한다.
+
+## Failure isolation
+
+Plugin discovery/load/API incompatibility는 `DUPLICATE_TARGET_ID`, `INVALID_TARGET_PLUGIN`, `INCOMPATIBLE_TARGET_PLUGIN`으로 구분한다. Source, runtime, bootstrap, validation 오류는 adapter가 body, command, credential을 포함하지 않는 stable code로 반환한다.
+

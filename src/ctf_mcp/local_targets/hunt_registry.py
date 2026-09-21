@@ -1,6 +1,9 @@
-"""외부 대상 모듈 연결을 위한 범용 등록 진입점."""
-from __future__ import annotations
+"""Compatibility view of the single SDK target registry."""
 
-def get_full_hunt_registry(*args, **kwargs):
-    """공개 코어에는 기본 대상 모듈을 포함하지 않는다."""
-    return None
+from ctf_mcp.targets import TargetRegistry
+
+from .plugin_registry import get_target_registry
+
+
+def get_full_hunt_registry() -> TargetRegistry:
+    return get_target_registry()

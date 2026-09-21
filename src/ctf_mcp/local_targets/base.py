@@ -212,4 +212,15 @@ def load_adapter(
     *,
     runner: FixedCommandRunner | None = None,
 ) -> LocalTargetAdapter:
-    raise LocalTargetError("invalid_local_target")
+    if not isinstance(target_id, str) or not TARGET_ID.fullmatch(target_id):
+        raise LocalTargetError("invalid_local_target")
+    from ctf_mcp.targets import TargetPluginError
+    from .plugin_registry import get_target_registry
+
+    try:
+        adapter = get_target_registry().load(target_id, root=root, runner=runner)
+    except TargetPluginError as error:
+        raise LocalTargetError(
+            "invalid_local_target" if error.code == "TARGET_NOT_FOUND" else error.code
+        ) from None
+    return adapter
